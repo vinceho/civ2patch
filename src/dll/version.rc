@@ -1,0 +1,21 @@
+#include "constants.h"
+
+1 VERSIONINFO
+FILEVERSION FILE_VERSION
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904E4"
+    BEGIN
+      VALUE "FileDescription",  DESCRIPTION
+      VALUE "OriginalFilename", MODULE_NAME
+      VALUE "ProductName",      PRODUCT
+      VALUE "ProductVersion",   PRODUCT_VERSION
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1252
+  END
+END
