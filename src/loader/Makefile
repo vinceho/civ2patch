@@ -14,14 +14,16 @@
 # You should have received a copy of the GNU General Public License
 # along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
 #
-all: out
-	cd src/dll; mingw32-make
-	cd src/loader; mingw32-make
+all: ../../out/civ2patch.exe
 
-out:
-	mkdir -p out
+version.ro: version.rc
+	windres version.rc version.ro
+
+*.o: *.cpp
+	g++ -O3 -c $^
+
+../../out/civ2patch.exe: *.o version.ro
+	g++ -mwindows -static -static-libgcc -static-libstdc++ -O3 -o $@ $^
 
 clean:
-	rm -rf out
-	cd src/dll; mingw32-make clean
-	cd src/loader; mingw32-make clean
+	rm -f version.ro *.o
