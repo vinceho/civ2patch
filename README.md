@@ -4,6 +4,10 @@
 
 The project modifies Civilization 2 Multiplyer Gold Edition to include additional features and fixes.
 
+## Requirement
+
+Only the unmodified Civilization 2 Multiplyer Gold Edition v1.3 English version is supported.
+
 ## Installation
 
 Extract all of the into the folder where Civilization 2 Multiplyer Gold Edition is installed. Launch `civ2patch.exe`.
@@ -13,6 +17,7 @@ Extract all of the into the folder where Civilization 2 Multiplyer Gold Edition 
 When running for the very first time, a configuration file `civ2patch.ini` will be created.
 
 ### Options
+
 All of the fields in the `Options` section are feature toggles. To enable a feature, set the value to `1`. To disable a feature, set the value to `0`.
 
 * `Log` When enabled, error messages will be written to the `civ2patch.log` file.
@@ -28,6 +33,7 @@ All of the fields in the `Options` section are feature toggles. To enable a feat
 * `SetMapTilesLimit` When enabled, allow the number of map tiles limit to be modified.
 
 ### Limits
+
 When the associated feature has been enabled, these fields allows the user to set the behaviour of the features.
 
 * `RetirementYear` The year at which the game will force the user to retire. (Min: `1`, Max: `9999`)
@@ -37,6 +43,7 @@ When the associated feature has been enabled, these fields allows the user to se
 * `GoldLimit` The maximum amount of gold. (Min: `30000`, Max: `2147483647`)
 
 ### Advanced
+
 These fields should not be changed. Refer to the source code to see what they do.
 
 * `MessageStatusInterval` The time interval in milliseconds at which the Windows message queue status is queried.
@@ -44,6 +51,7 @@ These fields should not be changed. Refer to the source code to see what they do
 * `CombatAnimationFrameLength` Reduce this number to speed up combat animation.
 
 ### Music
+
 These fields configures the music player when the feature is enabled.
 
 * `Frequency` The audio sampling frequency.
