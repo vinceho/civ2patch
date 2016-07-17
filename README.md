@@ -27,7 +27,7 @@ All of the fields in the `Options` section are feature toggles. To enable a feat
 * `SetGoldLimit` When enabled, allow the gold limit to be modified.
 * `SetMapTilesLimit` When enabled, allow the number of map tiles limit to be modified.
 
-### Options
+### Limits
 When the associated feature has been enabled, these fields allows the user to set the behaviour of the features.
 
 * `RetirementYear` The year at which the game will force the user to retire. (Min: `1`, Max: `9999`)
