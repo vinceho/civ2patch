@@ -6,7 +6,7 @@ The project modifies Civilization 2 Multiplyer Gold Edition to include additiona
 
 ## Requirement
 
-Only the unmodified Civilization 2 Multiplyer Gold Edition v1.3 English version is supported.
+Only the unmodified Civilization 2 Multiplyer Gold Edition v1.3 US version is supported.
 
 ## Installation
 
