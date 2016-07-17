@@ -47,7 +47,7 @@ When the associated feature has been enabled, these fields allow the user to set
 These fields should not be changed. Refer to the source code to see what they do.
 
 * `MessageStatusInterval` The time interval in milliseconds at which the Windows message queue status is queried.
-* `MessageWaitTimeout` The time interval in milliseconds at which the Windows message queue status is queried.
+* `MessageWaitTimeout` The time to wait for user inputs when the application idles.
 * `CombatAnimationFrameLength` Reduce this number to speed up combat animation.
 
 ### Music
