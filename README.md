@@ -10,7 +10,7 @@ Only the unmodified Civilization 2 Multiplyer Gold Edition v1.3 US version is su
 
 ## Installation
 
-Extract all of the into the folder where Civilization 2 Multiplyer Gold Edition is installed. Launch `civ2patch.exe`.
+Extract all of the files into the folder where Civilization 2 Multiplyer Gold Edition is installed. Launch `civ2patch.exe`.
 
 ## Configuring
 
