@@ -363,7 +363,7 @@ MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID wProxyId, UINT uMsg, DWORD_P
       MCI_OPEN_PARMS *params = (MCI_OPEN_PARMS *)dwParam;
 
       if (params) {
-        AddMciDevice(params->wDeviceID);
+        params->wDeviceID = AddMciDevice(params->wDeviceID);
       }
     } else if (uMsg == MCI_CLOSE) {
       RemoveMciDevice(wProxyId);
