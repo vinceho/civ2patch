@@ -34,7 +34,7 @@ All of the fields in the `Options` section are feature toggles. To enable a feat
 
 ### Limits
 
-When the associated feature has been enabled, these fields allows the user to set the behaviour of the features.
+When the associated feature has been enabled, these fields allow the user to set the behaviour of the features.
 
 * `RetirementYear` The year at which the game will force the user to retire. (Min: `1`, Max: `9999`)
 * `RetirementWarningYear` The year at which the game will warn the user of inevitable retirement. (Min: `0`, Max: `RetirementYear - 1`)
