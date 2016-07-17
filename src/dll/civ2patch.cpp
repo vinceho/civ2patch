@@ -20,31 +20,24 @@
 #include "civ2patch.h"
 #include "inject.h"
 #include "game.h"
+#include "config.h"
 #include "log.h"
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
 {
   HANDLE hProcess = NULL;
+  BOOL bSuccess = TRUE;
 
   switch (dwReason)
   {
     case DLL_PROCESS_ATTACH:
+      InitializeConfig();
       InitializeLog();
 
       hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
 
       if (hProcess) {
-        PatchIdleCpu(hProcess);
-        PatchMapTilesLimit(hProcess);
-        PatchHostileAi(hProcess);
-        PatchCdCheck(hProcess);
-        Patch64BitCompatibility(hProcess);
-        PatchTimeLimit(hProcess);
-        PatchPopulationLimit(hProcess);
-        PatchGoldLimit(hProcess);
-        PatchMediaPlayback(hProcess);
-        PatchFastCombat(hProcess);
-
+        bSuccess = PatchGame(hProcess);
         CloseHandle(hProcess);
       } else {
         Log("ERROR: Failed to open process.");
@@ -58,5 +51,5 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
       break;
   }
 
-  return TRUE;
+  return bSuccess;
 }

@@ -17,21 +17,27 @@
  */
 #include <stdio.h>
 #include "log.h"
+#include "constants.h"
+#include "config.h"
 
 void InitializeLog()
 {
-  // Purge log file.
-  fclose(fopen("civ2patch.log", "w"));
+  if (g_config.bLog) {
+    // Purge log file.
+    fclose(fopen(LOG_FILE, "w"));
+  }
 }
 
 void Log(LPCSTR lpcsFormat, ...)
 {
-  FILE *file = fopen("civ2patch.log", "a");
+  if (g_config.bLog) {
+    FILE *file = fopen(LOG_FILE, "a");
 
-  va_list args;
-  va_start(args, lpcsFormat);
-  vfprintf(file, lpcsFormat, args);
-  va_end(args);
+    va_list args;
+    va_start(args, lpcsFormat);
+    vfprintf(file, lpcsFormat, args);
+    va_end(args);
 
-  fclose(file);
+    fclose(file);
+  }
 }

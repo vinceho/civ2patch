@@ -16,17 +16,52 @@
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <SDL2/SDL.h>
-#include <map>
 #include "civ2patch.h"
 #include "constants.h"
 #include "game.h"
 #include "inject.h"
+#include "config.h"
 #include "log.h"
+#include "audio.h"
 
 #define PEEK_MESSAGE_HOOK "PeekMessageEx"
 #define MCI_SEND_CMD_HOOK "mciSendCommandEx"
 
 DWORD g_dwLastMsgStatusTime = 0;
+DWORD g_dwMessageStatusInterval = 0;
+DWORD g_dwMessageWaitTimeout = 0;
+
+BOOL PatchIdleCpu(HANDLE);
+BOOL PatchHostileAi(HANDLE);
+BOOL PatchCdCheck(HANDLE);
+BOOL Patch64BitCompatibility(HANDLE);
+BOOL PatchMapTilesLimit(HANDLE, DWORD);
+BOOL PatchTimeLimit(HANDLE, DWORD, DWORD);
+BOOL PatchPopulationLimit(HANDLE, DWORD);
+BOOL PatchGoldLimit(HANDLE, DWORD);
+BOOL PatchMediaPlayback(HANDLE);
+BOOL PatchFastCombat(HANDLE, DWORD);
+
+BOOL PatchGame(HANDLE hProcess)
+{
+  BOOL bSuccess = TRUE;
+
+  g_dwMessageStatusInterval = g_config.dwMessageStatusInterval;
+  g_dwMessageWaitTimeout = g_config.dwMessageWaitTimeout;
+
+  if (g_config.bMusic) bSuccess &= PatchMediaPlayback(hProcess);
+  if (g_config.bFixCpu) bSuccess &= PatchIdleCpu(hProcess);
+  if (g_config.bFix64BitCompatibility) bSuccess &= Patch64BitCompatibility(hProcess);
+  if (g_config.bNoCdCheck) bSuccess &= PatchCdCheck(hProcess);
+  if (g_config.bFixHostileAi) bSuccess &= PatchHostileAi(hProcess);
+  if (g_config.bSetRetirementYear) bSuccess &= PatchTimeLimit(hProcess, g_config.dwRetirementYear, g_config.dwRetirementWarningYear);
+  if (g_config.bSetCombatAnimationLength) bSuccess &= PatchFastCombat(hProcess, g_config.dwCombatAnimationLength);
+  if (g_config.bSetPopulationLimit) bSuccess &= PatchPopulationLimit(hProcess, g_config.dwPopulationLimit);
+  if (g_config.bSetGoldLimit) bSuccess &= PatchGoldLimit(hProcess, g_config.dwGoldLimit);
+  if (g_config.bSetMapTilesLimit) bSuccess &= PatchMapTilesLimit(hProcess, g_config.dwMapTilesLimit);
+
+  return bSuccess;
+}
 
 BOOL PatchIdleCpu(HANDLE hProcess)
 {
@@ -81,10 +116,12 @@ BOOL PatchMediaPlayback(HANDLE hProcess)
   return bSuccess;
 }
 
-BOOL PatchMapTilesLimit(HANDLE hProcess)
+BOOL PatchMapTilesLimit(HANDLE hProcess, DWORD dwMapTilesLimit)
 {
   // Change max number of map tiles from 10,000 to 32,767.
-  BYTE buffer[] = {0xFF, 0x7F};
+  BYTE buffer[2];
+  ConvertValueToByteArray(dwMapTilesLimit, 2, buffer);
+
   BOOL bSuccess = WriteMemory(hProcess, buffer, 2, 0x41D6FF);
 
   if (!bSuccess) {
@@ -160,11 +197,12 @@ BOOL Patch64BitCompatibility(HANDLE hProcess)
   return bSuccess;
 }
 
-BOOL PatchTimeLimit(HANDLE hProcess)
+BOOL PatchTimeLimit(HANDLE hProcess, DWORD dwRetirementYear, DWORD dwRetirementWarningYear)
 {
   {
-    // Change retirement warning year from 2000 to 9979.
-    BYTE buffer[] = {0xFB, 0x26};
+    // Change retirement warning year from 2000.
+    BYTE buffer[2];
+    ConvertValueToByteArray(dwRetirementWarningYear, 2, buffer);
 
     if(!WriteMemory(hProcess, buffer, 2, 0x48B069)) {
       goto PATCH_TIME_LIMIT_FAILED;
@@ -172,8 +210,9 @@ BOOL PatchTimeLimit(HANDLE hProcess)
   }
 
   {
-    // Change force retirement year from 2020 to 9999.
-    BYTE buffer[] = {0x0F, 0x27};
+    // Change force retirement year from 2020.
+    BYTE buffer[2];
+    ConvertValueToByteArray(dwRetirementYear, 2, buffer);
 
     if(!WriteMemory(hProcess, buffer, 2, 0x48B2AD) || !WriteMemory(hProcess, buffer, 2, 0x48B0BB)) {
       goto PATCH_TIME_LIMIT_FAILED;
@@ -189,10 +228,12 @@ PATCH_TIME_LIMIT_FAILED:
   return FALSE;
 }
 
-BOOL PatchPopulationLimit(HANDLE hProcess)
+BOOL PatchPopulationLimit(HANDLE hProcess, DWORD dwPopulationLimit)
 {
-  // Change max population from 320,000 to 2,000,000,000.
-  BYTE buffer[] = {0x40, 0x0D, 0x03, 0x00};
+  // Change max population from 320,000,000.
+  BYTE buffer[4];
+  ConvertValueToByteArray(dwPopulationLimit, 4, buffer);
+
   BOOL bSuccess = (WriteMemory(hProcess, buffer, 4, 0x43CD74) && WriteMemory(hProcess, buffer, 4, 0x43CD81));
 
   if (!bSuccess) {
@@ -202,10 +243,12 @@ BOOL PatchPopulationLimit(HANDLE hProcess)
   return bSuccess;
 }
 
-BOOL PatchGoldLimit(HANDLE hProcess)
+BOOL PatchGoldLimit(HANDLE hProcess, DWORD dwGoldLimit)
 {
-  // Change max gold from 30,000 to 2,000,000,000.
-  BYTE buffer[] = {0x00, 0x94, 0x35, 0x77};
+  // Change max gold from 30,000.
+  BYTE buffer[4];
+  ConvertValueToByteArray(dwGoldLimit, 4, buffer);
+
   BOOL bSuccess = (WriteMemory(hProcess, buffer, 4, 0x489608) && WriteMemory(hProcess, buffer, 4, 0x48962A));
 
   if (!bSuccess) {
@@ -215,10 +258,12 @@ BOOL PatchGoldLimit(HANDLE hProcess)
   return bSuccess;
 }
 
-BOOL PatchFastCombat(HANDLE hProcess)
+BOOL PatchFastCombat(HANDLE hProcess, DWORD dwCombatAnimationFrameLength)
 {
-  // Each combat frame duration reduced from 64ms to 1ms.
-  BYTE buffer[] = {0x01};
+  // Each combat frame duration reduced from 64ms.
+  BYTE buffer[1];
+  ConvertValueToByteArray(dwCombatAnimationFrameLength, 1, buffer);
+
   BOOL bSuccess = WriteMemory(hProcess, buffer, 1, 0x57F4F6);
 
   if (!bSuccess) {
@@ -239,189 +284,92 @@ BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UIN
     }
 
     // Purge message queue to fix "Not Responding" problem during long AI turns.
-    if ((dwNow - g_dwLastMsgStatusTime) >= MSG_STATUS_INTERVAL) {
+    if ((dwNow - g_dwLastMsgStatusTime) >= g_dwMessageStatusInterval) {
       GetQueueStatus(QS_ALLINPUT);
       g_dwLastMsgStatusTime = dwNow;
     } else {
-      MsgWaitForMultipleObjectsEx(0, 0, MSG_WAIT_TIMEOUT, QS_ALLINPUT, 0);
+      if (g_dwMessageWaitTimeout) {
+        MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, 0);
+      }
     }
   } else {
-    MsgWaitForMultipleObjectsEx(0, 0, MSG_WAIT_TIMEOUT, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    if (g_dwMessageWaitTimeout) {
+      MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    }
     g_dwLastMsgStatusTime = dwNow;
   }
 
   return PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
 }
 
-// Maps device proxy Id to real Id provided by Windows.
-std::map<MCIDEVICEID, MCIDEVICEID> mciDeviceIdMap;
-
-MCIDEVICEID GetNextProxyId()
-{
-  MCIDEVICEID wNewProxyId = 1;
-
-  for (std::map<MCIDEVICEID, MCIDEVICEID>::iterator it = mciDeviceIdMap.begin(); it != mciDeviceIdMap.end(); ++it) {
-    if (it->first > wNewProxyId) {
-      wNewProxyId = it->first + 1;
-    }
-  }
-
-  return wNewProxyId;
-}
-
-MCIDEVICEID AddMciDevice(MCIDEVICEID wId)
-{
-  MCIDEVICEID wNewProxyId = GetNextProxyId();
-
-  mciDeviceIdMap[wNewProxyId] = wId;
-
-  return wNewProxyId;
-}
-
-BOOL hasMciDevice(MCIDEVICEID wProxyId)
-{
-  return (mciDeviceIdMap.find(wProxyId) != mciDeviceIdMap.end());
-}
-
-void RemoveMciDevice(MCIDEVICEID wProxyId)
-{
-  mciDeviceIdMap.erase(wProxyId);
-}
-
-#include <SDL2/SDL_mixer.h>
-
-Mix_Music *music = NULL;
-HWND hMusicCallback = 0;
-
-void NotifyMusicFinished()
-{
-  Log("INFO: Music ended.\n");
-
-  if (hMusicCallback) {
-    Log("INFO: Calling back.\n");
-    PostMessage(hMusicCallback, MM_MCINOTIFY, MCI_NOTIFY_SUCCESSFUL, MAKELONG(1, 0));
-  }
-}
-
-typedef int (* FP_SDL_INIT)(Uint32);
-typedef const char* (* FP_SDL_GET_ERROR)();
-
 MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID wProxyId, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam)
 {
-  Log("INFO: mciSendCommandEx ID: '%d' MSG: '0x%x' FLAGS: '0x%x'.\n", wProxyId, uMsg, fdwCommand);
-
   if (uMsg == MCI_OPEN && (fdwCommand & MCI_OPEN_TYPE)) {
     MCI_OPEN_PARMS *params = (MCI_OPEN_PARMS *)dwParam;
 
-    if (!strcmp(params->lpstrDeviceType, "cdaudio")) {
-      int nMixerFlags = (MIX_INIT_MP3 | MIX_INIT_OGG);
-
-      if (!SDL_Init(SDL_INIT_AUDIO)
-          && Mix_Init(nMixerFlags) == nMixerFlags
-          && !Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 8194)) {
-        Log("INFO: Initialized SDL.\n");
-
-        // Use device Id 0 to denote the SDL audio device.
-        if (params) {
-          params->wDeviceID = AddMciDevice(0);
-        }
-      } else {
-        Log("ERROR: Failed to initialize SDL '%s'.\n", SDL_GetError());
-
+    if (params && !strcmp(params->lpstrDeviceType, MUSIC_DEVICE_NAME)) {
+      if (!InitializeAudio(g_config.dwMusicFreq, g_config.dwMusicChunkSize, g_config.dwMusicVolume, g_config.dwMusicAlbum)) {
         return MCIERR_INTERNAL;
       }
 
-      Mix_HookMusicFinished(NotifyMusicFinished);
+      params->wDeviceID = AddMciDevice(MUSIC_DEVICE_ID);
 
       return 0;
     }
-  } else if (uMsg == MCI_CLOSE) {
-    if (hasMciDevice(wProxyId) && mciDeviceIdMap[wProxyId] == 0) {
-
-      if (music) {
-        Mix_FreeMusic(music);
-        music = NULL;
+  } else if (IsMusicMciDevice(wProxyId)) {
+    if (uMsg == MCI_CLOSE) {
+      if (!CloseAudio()) {
+        return MCIERR_INTERNAL;
       }
+    } else if (uMsg == MCI_STATUS) {
+      MCI_STATUS_PARMS *params = (MCI_STATUS_PARMS *)dwParam;
 
-      Mix_CloseAudio();
-
-      // force a quit
-      while(Mix_Init(0)) {
-        Mix_Quit();
+      if (params) {
+        if (fdwCommand & MCI_STATUS_ITEM) {
+          if (params->dwItem & MCI_STATUS_NUMBER_OF_TRACKS) {
+            params->dwReturn = GetNumberMusicTracks();
+          }
+        }
       }
-
-      SDL_Quit();
-      Log("INFO: Uninitialized SDL.\n");
 
       return 0;
-    }
-  } else if (hasMciDevice(wProxyId) && mciDeviceIdMap[wProxyId] == 0) {
-    if (uMsg == MCI_STATUS) {
-       MCI_STATUS_PARMS *params = (MCI_STATUS_PARMS *)dwParam;
-
-       if (params) {
-         if (fdwCommand & MCI_STATUS_ITEM) {
-           if (params->dwItem & MCI_STATUS_NUMBER_OF_TRACKS) {
-             Log("INFO: Setting number of audio tracks.\n");
-             // Valid number of tracks: 10, 12, 18, 24
-             params->dwReturn = 24;
-           } else if (params->dwItem & MCI_STATUS_LENGTH) {
-             Log("INFO: Cannot get length of audio tracks.\n");
-
-             return MCIERR_INTERNAL;
-           }
-         }
-       }
-
-       return 0;
-    } else if (uMsg == MCI_SEEK) {
-      Log("INFO: CD audio seek command is ignored.\n");
     } else if (uMsg == MCI_STOP) {
-      if (music) {
-        Mix_FreeMusic(music);
-        music = NULL;
-      }
+      StopMusic();
     } else if (uMsg == MCI_PLAY) {
       MCI_PLAY_PARMS *params = (MCI_PLAY_PARMS *)dwParam;
 
-      if (fdwCommand & MCI_FROM) {
-        Log("INFO: Loading music track %d.\n", params->dwFrom);
+      if (params) {
+        DWORD dwTrackFrom = (fdwCommand & MCI_FROM) ? params->dwFrom : 0;
+        HWND hCallback = (fdwCommand & MCI_NOTIFY) ? (HWND)LOWORD(params->dwCallback) : 0;
+
+        // Music track number starts at 2.
+        if (PlayMusic(dwTrackFrom - 1, hCallback)) {
+          return 0;
+        }
       }
 
-      if (fdwCommand & MCI_TO) {
-        Log("INFO: Play to track %d.\n", params->dwTo);
-      }
-
-      if (fdwCommand & MCI_NOTIFY) {
-        hMusicCallback = (HWND)LOWORD(params->dwCallback);
-      } else {
-        Log("INFO: No callback.\n");
-        hMusicCallback = 0;
-      }
-
-      Mix_VolumeMusic(64);
-
-      if (music) {
-        Mix_FreeMusic(music);
-        music = NULL;
-      }
-
-      music = Mix_LoadMUS("Music\\1.mp3");
-
-      if (!music) {
-        Log("ERROR: Failed to load music.\n");
-      }
-
-      if(Mix_PlayMusic(music, 1)) {
-        Log("ERROR: Failed to play music '%s'.\n", SDL_GetError());
-      }
+      return MCIERR_INTERNAL;
     }
 
     return 0;
   }
 
-  if (wProxyId == 0 || (hasMciDevice(wProxyId) && mciDeviceIdMap[wProxyId] != 0)) {
-    return mciSendCommand(mciDeviceIdMap[wProxyId], uMsg, fdwCommand, dwParam);
+  // Forward non CD audio MCI calls.
+  if (!IsMusicMciDevice(wProxyId)) {
+    MCIERROR mciError = mciSendCommand(GetMciDevice(wProxyId), uMsg, fdwCommand, dwParam);
+
+    // Manage device Id so it does not conflict with the fake CD audio device Id.
+    if (uMsg == MCI_OPEN) {
+      MCI_OPEN_PARMS *params = (MCI_OPEN_PARMS *)dwParam;
+
+      if (params) {
+        AddMciDevice(params->wDeviceID);
+      }
+    } else if (uMsg == MCI_CLOSE) {
+      RemoveMciDevice(wProxyId);
+    }
+
+    return mciError;
   } else {
     return MCIERR_INTERNAL;
   }
