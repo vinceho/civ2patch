@@ -19,6 +19,7 @@
 #include "constants.h"
 
 typedef BOOL (WINAPI *__WriteProcessMemory__)(HANDLE,LPVOID,LPCVOID,SIZE_T,SIZE_T*);
+typedef PVOID (WINAPI *__VirtualAllocEx__)(HANDLE,PVOID,DWORD,DWORD,DWORD);
 
 const CHAR DLL_NAME[] = "civ2patch.dll";
 const CHAR EXE_NAME[] = "civ2.exe";
@@ -32,10 +33,12 @@ void clean(BOOL bTerminate) {
   if (g_processInfo.hProcess) {
     if (g_hDllInjectThread) {
       CloseHandle(g_hDllInjectThread);
+      g_hDllInjectThread = NULL;
     }
 
     if (g_memAddress) {
       VirtualFreeEx(g_processInfo.hProcess, g_memAddress, sizeof(DLL_NAME), MEM_RELEASE);
+      g_memAddress = NULL;
     }
 
     if (bTerminate) {
@@ -55,8 +58,6 @@ void ExitWithError(LPCSTR lpcsMessage)
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nCmdShow)
 {
-
-
   ZeroMemory(&g_processInfo, sizeof(g_processInfo));
   ZeroMemory(&g_statusInfo, sizeof(g_statusInfo));
   g_statusInfo.cb = sizeof(g_statusInfo);
@@ -73,12 +74,13 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nC
 
   FARPROC lpfLoadLibraryAddress = GetProcAddress(hKernel, "LoadLibraryA");
   __WriteProcessMemory__ lpfWriteProcessMemory = (__WriteProcessMemory__)GetProcAddress(hKernel, "WriteProcessMemory");
+  __VirtualAllocEx__ lpfVirtualAllocEx = (__VirtualAllocEx__)GetProcAddress(hKernel, "VirtualAllocEx");
 
-  if (!lpfLoadLibraryAddress || !lpfWriteProcessMemory) {
+  if (!lpfLoadLibraryAddress || !lpfWriteProcessMemory || !lpfVirtualAllocEx) {
     ExitWithError("Failed to get library functions.");
   }
 
-  g_memAddress = VirtualAllocEx(g_processInfo.hProcess, NULL, sizeof(DLL_NAME), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+  g_memAddress = lpfVirtualAllocEx(g_processInfo.hProcess, NULL, sizeof(DLL_NAME), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 
   if (!g_memAddress) {
     ExitWithError("Failed to allocate memory for DLL injection.");
