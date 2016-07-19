@@ -116,6 +116,7 @@ BOOL InitializeAudio(DWORD dwFreq, DWORD dwChunkSize, DWORD dwVolume, DWORD dwAl
 BOOL CloseAudio()
 {
   g_dwMusicAlbum = 0;
+  g_hNotifyMusicFinishedCallback = NULL;
 
   RemoveMciDevice(g_dwCdDeviceProxyId);
 
