@@ -25,7 +25,7 @@ Config g_config = {
   // Options
   FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE,
   // Advanced
-  3000, 1, 8,
+  3000, 1, 8, 0.5f,
   // Limits
   9999, 9979, 32767, 200000, 2000000000,
   // Music
@@ -51,9 +51,10 @@ ConfigLink configLinks[] = {
   { "Limits", "PopulationLimit", CVT_NUMBER, &g_config.dwPopulationLimit },
   { "Limits", "GoldLimit", CVT_NUMBER, &g_config.dwGoldLimit },
 
-  { "Advanced", "MessageStatusInterval", CVT_NUMBER, &g_config.dwMessageStatusInterval },
+  { "Advanced", "PurgeMessagesInterval", CVT_NUMBER, &g_config.dwPurgeMessagesInterval },
   { "Advanced", "MessageWaitTimeout", CVT_NUMBER, &g_config.dwMessageWaitTimeout },
-  { "Advanced", "CombatAnimationFrameLength", CVT_NUMBER, &g_config.dwCombatAnimationLength },
+  { "Advanced", "CombatAnimationLength", CVT_NUMBER, &g_config.dwCombatAnimationLength },
+  { "Advanced", "ProcessTimeToSleepTimeRatio", CVT_FLOAT, &g_config.fSleepRatio },
 
   { "Music", "Frequency", CVT_NUMBER, &g_config.dwMusicFreq },
   { "Music", "ChunkSize", CVT_NUMBER, &g_config.dwMusicChunkSize },
@@ -85,6 +86,17 @@ DWORD GetMinMax(DWORD dwValue, DWORD dwMin, DWORD dwMax)
   return dwValue;
 }
 
+FLOAT GetMinMaxFloat(FLOAT fValue, FLOAT fMin, FLOAT fMax)
+{
+  if (fValue < fMin) {
+    return fMin;
+  } else if (fValue > fMax) {
+    return fMax;
+  }
+
+  return fValue;
+}
+
 BOOL ValidateConfig()
 {
   // Ensure boolean non-zero value is always TRUE.
@@ -100,7 +112,7 @@ BOOL ValidateConfig()
   g_config.bSetGoldLimit = (g_config.bSetGoldLimit) ? TRUE : FALSE;;
   g_config.bSetMapTilesLimit = (g_config.bSetMapTilesLimit) ? TRUE : FALSE;;
 
-  g_config.dwMessageStatusInterval = GetMinMax(1000, g_config.dwMessageStatusInterval, 5000);
+  g_config.dwPurgeMessagesInterval = GetMinMax(1000, g_config.dwPurgeMessagesInterval, 5000);
   g_config.dwMessageWaitTimeout = GetMinMax(1, g_config.dwMessageWaitTimeout, 100);
   g_config.dwRetirementYear = GetMinMax(1, g_config.dwRetirementYear, 9999);
   g_config.dwRetirementWarningYear = GetMinMax(0, g_config.dwRetirementWarningYear, g_config.dwRetirementYear - 1);
@@ -108,6 +120,7 @@ BOOL ValidateConfig()
   g_config.dwPopulationLimit = GetMinMax(32000, g_config.dwPopulationLimit, 2147483647);
   g_config.dwGoldLimit = GetMinMax(30000, g_config.dwGoldLimit, 2147483647);
   g_config.dwCombatAnimationLength = GetMinMax(0, g_config.dwCombatAnimationLength, 64);
+  g_config.fSleepRatio = GetMinMaxFloat(0.1f, g_config.fSleepRatio, 10.0f);
 
   // Music
   g_config.dwMusicFreq = GetMinMax(11025, g_config.dwMusicFreq, 44100);
@@ -157,6 +170,9 @@ BOOL ReadConfig()
               case CVT_NUMBER:
                 *(DWORD *)(configLinks[i].lpvValue) = (DWORD)atoi(value);
                 break;
+              case CVT_FLOAT:
+                *(FLOAT *)(configLinks[i].lpvValue) = (FLOAT)atof(value);
+                break;
             }
 
             break;
@@ -198,6 +214,9 @@ BOOL WriteConfig()
       case CVT_BOOL:
       case CVT_NUMBER:
         fprintf(file, "%s=%d\n", configLinks[i].lpcsName, *(DWORD *)(configLinks[i].lpvValue));
+        break;
+      case CVT_FLOAT:
+        fprintf(file, "%s=%f\n", configLinks[i].lpcsName, *(FLOAT *)(configLinks[i].lpvValue));
         break;
     }
   }

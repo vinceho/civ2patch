@@ -22,7 +22,8 @@
 
 enum ConfigValueType {
   CVT_NUMBER,
-  CVT_BOOL
+  CVT_BOOL,
+  CVT_FLOAT
 };
 
 typedef struct {
@@ -48,9 +49,10 @@ typedef struct {
   BOOL bSetMapTilesLimit;
 
   // Advanced
-  DWORD dwMessageStatusInterval;
+  DWORD dwPurgeMessagesInterval;
   DWORD dwMessageWaitTimeout;
   DWORD dwCombatAnimationLength;
+  FLOAT fSleepRatio;
 
   // Limits
   DWORD dwRetirementYear;

@@ -27,9 +27,12 @@
 #define PEEK_MESSAGE_HOOK "PeekMessageEx"
 #define MCI_SEND_CMD_HOOK "mciSendCommandEx"
 
-DWORD g_dwLastMsgStatusTime = 0;
-DWORD g_dwMessageStatusInterval = 0;
+DWORD g_dwLastMessagePurgeTime = 0;
+DWORD g_dwPurgeMessagesInterval = 0;
 DWORD g_dwMessageWaitTimeout = 0;
+DWORD g_dwStartTime = 0;
+DWORD g_dwTotalSleepTime = 0;
+FLOAT g_fSleepRatio = 0.0f;
 
 BOOL PatchIdleCpu(HANDLE);
 BOOL PatchHostileAi(HANDLE);
@@ -46,8 +49,9 @@ BOOL PatchGame(HANDLE hProcess)
 {
   BOOL bSuccess = TRUE;
 
-  g_dwMessageStatusInterval = g_config.dwMessageStatusInterval;
+  g_dwPurgeMessagesInterval = g_config.dwPurgeMessagesInterval;
   g_dwMessageWaitTimeout = g_config.dwMessageWaitTimeout;
+  g_fSleepRatio = g_config.fSleepRatio;
 
   if (g_config.bMusic) bSuccess &= PatchMediaPlayback(hProcess);
   if (g_config.bFixCpu) bSuccess &= PatchIdleCpu(hProcess);
@@ -65,7 +69,7 @@ BOOL PatchGame(HANDLE hProcess)
 
 BOOL PatchIdleCpu(HANDLE hProcess)
 {
-  DWORD dwAddressList[] = {0x5BBB91, 0x5BD2F9, 0x5BD31D};
+  DWORD dwAddressList[] = { 0x5BBA64, 0x5BBB91, 0x5BD2F9, 0x5BD31D};
   DWORD dwSize = sizeof(dwAddressList) / sizeof(DWORD);
   BOOL bSuccess = TRUE;
   HMODULE hModule = GetCurrentModuleHandle();
@@ -277,26 +281,37 @@ BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UIN
 {
   DWORD dwNow = timeGetTime();
 
+  if (!g_dwTotalSleepTime) {
+    MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+
+    g_dwStartTime = dwNow;
+    g_dwTotalSleepTime += (timeGetTime() - dwNow);
+  } else if (((FLOAT)(dwNow - g_dwStartTime - g_dwTotalSleepTime) / (FLOAT)g_dwTotalSleepTime) >= g_fSleepRatio) {
+    MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    g_dwTotalSleepTime += (timeGetTime() - dwNow);
+  }
+
   // Civilization 2 uses filter value 957 as a spinning wait.
   if (wMsgFilterMin == 957) {
-    if (g_dwLastMsgStatusTime == 0) {
-      g_dwLastMsgStatusTime = dwNow;
+    if (!g_dwLastMessagePurgeTime) {
+      g_dwLastMessagePurgeTime = dwNow;
     }
 
     // Purge message queue to fix "Not Responding" problem during long AI turns.
-    if ((dwNow - g_dwLastMsgStatusTime) >= g_dwMessageStatusInterval) {
-      GetQueueStatus(QS_ALLINPUT);
-      g_dwLastMsgStatusTime = dwNow;
-    } else {
-      if (g_dwMessageWaitTimeout) {
-        MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, 0);
+    if ((dwNow - g_dwLastMessagePurgeTime) >= g_dwPurgeMessagesInterval) {
+      if (LOWORD(GetQueueStatus(QS_ALLINPUT))) {
+        MSG msg;
+
+        while (PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE)) {
+          TranslateMessage(&msg);
+          DispatchMessageA(&msg);
+        }
       }
+
+      g_dwLastMessagePurgeTime = dwNow;
     }
   } else {
-    if (g_dwMessageWaitTimeout) {
-      MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-    }
-    g_dwLastMsgStatusTime = dwNow;
+    g_dwLastMessagePurgeTime = dwNow;
   }
 
   return PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);

@@ -46,9 +46,10 @@ When the associated feature has been enabled, these fields allow the user to set
 
 These fields should not be changed. Refer to the source code to see what they do.
 
-* `MessageStatusInterval` The time interval in milliseconds at which the Windows message queue status is queried.
+* `PurgeMessagesInterval` The time interval in milliseconds at which the Windows message queue is purged.
 * `MessageWaitTimeout` The time to wait for user inputs when the application idles.
-* `CombatAnimationFrameLength` Reduce this number to speed up combat animation.
+* `CombatAnimationLength` Reduce this number to speed up combat animation.
+* `ProcessTimeToSleepTimeRatio` The ratio between process time to sleep time. The lower the number, the less CPU cycles are used. However, low value may cause the game to run slowly.
 
 ### Music
 
