@@ -53,6 +53,7 @@ typedef struct {
   DWORD dwMessageWaitTimeout;
   DWORD dwCombatAnimationLength;
   FLOAT fSleepRatio;
+  DWORD dwCpuSamplingInterval;
 
   // Limits
   DWORD dwRetirementYear;

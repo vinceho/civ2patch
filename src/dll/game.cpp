@@ -33,6 +33,7 @@ DWORD g_dwMessageWaitTimeout = 0;
 DWORD g_dwStartTime = 0;
 DWORD g_dwTotalSleepTime = 0;
 FLOAT g_fSleepRatio = 0.0f;
+DWORD g_dwCpuSamplingInterval;
 
 BOOL PatchIdleCpu(HANDLE);
 BOOL PatchHostileAi(HANDLE);
@@ -51,6 +52,7 @@ BOOL PatchGame(HANDLE hProcess)
 
   g_dwPurgeMessagesInterval = g_config.dwPurgeMessagesInterval;
   g_dwMessageWaitTimeout = g_config.dwMessageWaitTimeout;
+  g_dwCpuSamplingInterval = g_config.dwCpuSamplingInterval;
   g_fSleepRatio = g_config.fSleepRatio;
 
   if (g_config.bMusic) bSuccess &= PatchMediaPlayback(hProcess);
@@ -280,15 +282,22 @@ BOOL PatchFastCombat(HANDLE hProcess, DWORD dwCombatAnimationFrameLength)
 BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
 {
   DWORD dwNow = timeGetTime();
+  DWORD dwElapsed = dwNow - g_dwStartTime;
 
   if (!g_dwTotalSleepTime) {
     MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 
+    // Prime the counters.
     g_dwStartTime = dwNow;
-    g_dwTotalSleepTime += (timeGetTime() - dwNow);
-  } else if (((FLOAT)(dwNow - g_dwStartTime - g_dwTotalSleepTime) / (FLOAT)g_dwTotalSleepTime) >= g_fSleepRatio) {
+    g_dwTotalSleepTime = 1;
+  } else if (((FLOAT)(dwElapsed - g_dwTotalSleepTime) / (FLOAT)g_dwTotalSleepTime) >= g_fSleepRatio) {
     MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
     g_dwTotalSleepTime += (timeGetTime() - dwNow);
+
+    // Reset
+    if (dwElapsed >= g_dwCpuSamplingInterval) {
+      g_dwTotalSleepTime = 0;
+    }
   }
 
   // Civilization 2 uses filter value 957 as a spinning wait.

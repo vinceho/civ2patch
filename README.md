@@ -50,6 +50,7 @@ These fields should not be changed. Refer to the source code to see what they do
 * `MessageWaitTimeout` The time to wait for user inputs when the application idles.
 * `CombatAnimationLength` Reduce this number to speed up combat animation.
 * `ProcessTimeToSleepTimeRatio` The ratio between process time to sleep time. The lower the number, the less CPU cycles are used. However, low value may cause the game to run slowly.
+* `CpuSamplingInterval` The time interval in milliseconds to recalculate the process time to sleep time ratio.
 
 ### Music
 

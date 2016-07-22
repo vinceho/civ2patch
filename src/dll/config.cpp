@@ -25,7 +25,7 @@ Config g_config = {
   // Options
   FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE,
   // Advanced
-  3000, 1, 8, 0.5f,
+  3000, 1, 8, 0.5f, 1000,
   // Limits
   9999, 9979, 32767, 200000, 2000000000,
   // Music
@@ -55,6 +55,7 @@ ConfigLink configLinks[] = {
   { "Advanced", "MessageWaitTimeout", CVT_NUMBER, &g_config.dwMessageWaitTimeout },
   { "Advanced", "CombatAnimationLength", CVT_NUMBER, &g_config.dwCombatAnimationLength },
   { "Advanced", "ProcessTimeToSleepTimeRatio", CVT_FLOAT, &g_config.fSleepRatio },
+  { "Advanced", "CpuSamplingInterval", CVT_NUMBER, &g_config.dwCpuSamplingInterval },
 
   { "Music", "Frequency", CVT_NUMBER, &g_config.dwMusicFreq },
   { "Music", "ChunkSize", CVT_NUMBER, &g_config.dwMusicChunkSize },
@@ -121,6 +122,7 @@ BOOL ValidateConfig()
   g_config.dwGoldLimit = GetMinMax(30000, g_config.dwGoldLimit, 2147483647);
   g_config.dwCombatAnimationLength = GetMinMax(0, g_config.dwCombatAnimationLength, 64);
   g_config.fSleepRatio = GetMinMaxFloat(0.1f, g_config.fSleepRatio, 10.0f);
+  g_config.dwCpuSamplingInterval = GetMinMax(100, g_config.dwCpuSamplingInterval, 10000);
 
   // Music
   g_config.dwMusicFreq = GetMinMax(11025, g_config.dwMusicFreq, 44100);
