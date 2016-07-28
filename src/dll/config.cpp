@@ -126,7 +126,7 @@ BOOL ValidateConfig()
 
   // Music
   g_config.dwMusicFreq = GetMinMax(11025, g_config.dwMusicFreq, 44100);
-  g_config.dwMusicChunkSize = GetMinMax(4096, g_config.dwMusicFreq, 1048576);
+  g_config.dwMusicChunkSize = GetMinMax(4096, g_config.dwMusicChunkSize, 1048576);
   g_config.dwMusicVolume = GetMinMax(0, g_config.dwMusicVolume, MIX_MAX_VOLUME);
   g_config.dwMusicAlbum = GetMinMax(0, g_config.dwMusicAlbum, 3);
 
@@ -226,4 +226,137 @@ BOOL WriteConfig()
   fclose(file);
 
   return TRUE;
+}
+
+/**
+ * Configuration getters.
+ */
+BOOL IsLogEnabled()
+{
+  return g_config.bLog;
+}
+
+BOOL IsMusicEnabled()
+{
+  return g_config.bMusic;
+}
+
+BOOL IsMultiplayerEnabled()
+{
+  return FALSE;
+}
+
+BOOL IsFixIdleCpuEnabled()
+{
+  return g_config.bFixCpu;
+}
+
+BOOL IsFix64BitEnabled()
+{
+  return g_config.bFix64BitCompatibility;
+}
+
+BOOL IsNoCdCheckEnabled()
+{
+  return g_config.bNoCdCheck;
+}
+
+BOOL IsFixHostileAiEnabled()
+{
+  return g_config.bFixHostileAi;
+}
+
+BOOL IsSetRetirementYearEnabled()
+{
+  return g_config.bSetRetirementYear;
+}
+
+BOOL IsSetCombatAnimationLengthEnabled()
+{
+  return g_config.bSetCombatAnimationLength;
+}
+
+BOOL IsSetPopulationLimitEnabled()
+{
+  return g_config.bSetPopulationLimit;
+}
+
+BOOL IsSetGoldLimitEnabled()
+{
+  return g_config.bSetGoldLimit;
+}
+
+BOOL IsSetMapTilesLimitEnabled()
+{
+  return g_config.bSetMapTilesLimit;
+}
+
+DWORD GetPurgeMessagesInterval()
+{
+  return g_config.dwPurgeMessagesInterval;
+}
+
+DWORD GetMessageWaitTimeout()
+{
+  return g_config.dwMessageWaitTimeout;
+}
+
+DWORD GetCombatAnimationLength()
+{
+  return g_config.dwCombatAnimationLength;
+}
+
+FLOAT GetSleepRatio()
+{
+  return g_config.fSleepRatio;
+}
+
+DWORD GetCpuSamplingInterval()
+{
+  return g_config.dwCpuSamplingInterval;
+}
+
+DWORD GetRetirementYear()
+{
+  return g_config.dwRetirementYear;
+}
+
+DWORD GetRetirementWarningYear()
+{
+  return g_config.dwRetirementWarningYear;
+}
+
+DWORD GetMapTilesLimit()
+{
+  return g_config.dwMapTilesLimit;
+}
+
+DWORD GetPopulationLimit()
+{
+  return g_config.dwPopulationLimit;
+}
+
+DWORD GetGoldLimit()
+{
+  return g_config.dwGoldLimit;
+}
+
+DWORD GetMusicFrequency()
+{
+  return g_config.dwMusicFreq;
+}
+
+DWORD GetMusicChunkSize()
+{
+  return g_config.dwMusicChunkSize;
+}
+
+DWORD GetMusicVolume()
+{
+  return g_config.dwMusicVolume;
+}
+
+DWORD GetMusicAlbum()
+{
+  return g_config.dwMusicAlbum;
 }

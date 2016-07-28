@@ -20,12 +20,10 @@
 #include "constants.h"
 #include "game.h"
 #include "inject.h"
+#include "hook.h"
 #include "config.h"
 #include "log.h"
 #include "audio.h"
-
-#define PEEK_MESSAGE_HOOK "PeekMessageEx"
-#define MCI_SEND_CMD_HOOK "mciSendCommandEx"
 
 DWORD g_dwLastMessagePurgeTime = 0;
 DWORD g_dwPurgeMessagesInterval = 0;
@@ -45,34 +43,38 @@ BOOL PatchPopulationLimit(HANDLE, DWORD);
 BOOL PatchGoldLimit(HANDLE, DWORD);
 BOOL PatchMediaPlayback(HANDLE);
 BOOL PatchFastCombat(HANDLE, DWORD);
+BOOL PatchMultiplayer(HANDLE hProcess);
 
 BOOL PatchGame(HANDLE hProcess)
 {
   BOOL bSuccess = TRUE;
 
-  g_dwPurgeMessagesInterval = g_config.dwPurgeMessagesInterval;
-  g_dwMessageWaitTimeout = g_config.dwMessageWaitTimeout;
-  g_dwCpuSamplingInterval = g_config.dwCpuSamplingInterval;
-  g_fSleepRatio = g_config.fSleepRatio;
+  g_dwPurgeMessagesInterval = GetPurgeMessagesInterval();
+  g_dwMessageWaitTimeout = GetMessageWaitTimeout();
+  g_dwCpuSamplingInterval = GetCpuSamplingInterval();
+  g_fSleepRatio = GetSleepRatio();
 
-  if (g_config.bMusic) bSuccess &= PatchMediaPlayback(hProcess);
-  if (g_config.bFixCpu) bSuccess &= PatchIdleCpu(hProcess);
-  if (g_config.bFix64BitCompatibility) bSuccess &= Patch64BitCompatibility(hProcess);
-  if (g_config.bNoCdCheck) bSuccess &= PatchCdCheck(hProcess);
-  if (g_config.bFixHostileAi) bSuccess &= PatchHostileAi(hProcess);
-  if (g_config.bSetRetirementYear) bSuccess &= PatchTimeLimit(hProcess, g_config.dwRetirementYear, g_config.dwRetirementWarningYear);
-  if (g_config.bSetCombatAnimationLength) bSuccess &= PatchFastCombat(hProcess, g_config.dwCombatAnimationLength);
-  if (g_config.bSetPopulationLimit) bSuccess &= PatchPopulationLimit(hProcess, g_config.dwPopulationLimit);
-  if (g_config.bSetGoldLimit) bSuccess &= PatchGoldLimit(hProcess, g_config.dwGoldLimit);
-  if (g_config.bSetMapTilesLimit) bSuccess &= PatchMapTilesLimit(hProcess, g_config.dwMapTilesLimit);
+  if (IsMusicEnabled()) bSuccess &= PatchMediaPlayback(hProcess);
+  if (IsMultiplayerEnabled()) bSuccess &= PatchMultiplayer(hProcess);
+  if (IsFixIdleCpuEnabled()) bSuccess &= PatchIdleCpu(hProcess);
+  if (IsFix64BitEnabled()) bSuccess &= Patch64BitCompatibility(hProcess);
+  if (IsNoCdCheckEnabled()) bSuccess &= PatchCdCheck(hProcess);
+  if (IsFixHostileAiEnabled()) bSuccess &= PatchHostileAi(hProcess);
+  if (IsSetRetirementYearEnabled()) bSuccess &= PatchTimeLimit(hProcess, GetRetirementYear(), GetRetirementWarningYear());
+  if (IsSetCombatAnimationLengthEnabled()) bSuccess &= PatchFastCombat(hProcess, GetCombatAnimationLength());
+  if (IsSetPopulationLimitEnabled()) bSuccess &= PatchPopulationLimit(hProcess, GetPopulationLimit());
+  if (IsSetGoldLimitEnabled()) bSuccess &= PatchGoldLimit(hProcess, GetGoldLimit());
+  if (IsSetMapTilesLimitEnabled()) bSuccess &= PatchMapTilesLimit(hProcess, GetMapTilesLimit());
 
   return bSuccess;
 }
 
 BOOL PatchIdleCpu(HANDLE hProcess)
 {
-  DWORD dwAddressList[] = { 0x5BBA64, 0x5BBB91, 0x5BD2F9, 0x5BD31D};
-  DWORD dwSize = sizeof(dwAddressList) / sizeof(DWORD);
+  const FunctionHook *hook = GetFunctionHook(PEEK_MESSAGE_HOOK);
+  LPDWORD lpdwAddressList = hook->addresses;
+  DWORD dwSize = hook->dwNumAddress;
+  LPCSTR lpcsFunctionName = hook->lpcsNewFunction;
   BOOL bSuccess = TRUE;
   HMODULE hModule = GetCurrentModuleHandle();
 
@@ -81,10 +83,10 @@ BOOL PatchIdleCpu(HANDLE hProcess)
   }
 
   for (DWORD i = 0; i < dwSize; i++) {
-    bSuccess = HookWindowsAPI(hProcess, hModule, PEEK_MESSAGE_HOOK, dwAddressList[i]);
+    bSuccess = HookWindowsAPI(hProcess, hModule, lpcsFunctionName, lpdwAddressList[i]);
 
     if (!bSuccess) {
-      Log("ERROR: Failed to patch idle cpu.");
+      Log("ERROR: Failed to patch idle CPU.\n");
       break;
     }
   }
@@ -94,15 +96,10 @@ BOOL PatchIdleCpu(HANDLE hProcess)
 
 BOOL PatchMediaPlayback(HANDLE hProcess)
 {
-  DWORD dwAddressList[] = {
-    0x5DDA8B, 0x5DDADE, 0x5DDAFE, 0x5DDB58, 0x5DDB7C, 0x5DDB9C, 0x5DDC1F, 0x5DDC43, 0x5DDCD3, 0x5DDD34,
-    0x5DDD7B, 0x5DDDC7, 0x5DDDE9, 0x5DDE3F, 0x5DDE79, 0x5DDEBF, 0x5DDF2C, 0x5DDF70, 0x5DDF90, 0x5DDFD0,
-    0x5DE03A, 0x5DE06B, 0x5DE09D, 0x5DE0EF, 0x5DE120, 0x5DE133, 0x5DE17A, 0x5DE18D, 0x5DE1C7, 0x5DE206,
-    0x5DE23D, 0x5DE27A, 0x5DE2B9, 0x5DE2FD, 0x5DE34A, 0x5DE38F, 0x5DE3CC, 0x5DE458, 0x5DE49D, 0x5DE4DA,
-    0x5DE572, 0x5DE5AB, 0x5EC789, 0x5EDE1A, 0x5EDE61, 0x5EDEAF, 0x5EDF11, 0x5EDF85, 0x5EDFA7, 0x5EE039,
-    0x5EE06A, 0x5EE0A1, 0x5EE4B8, 0x5EE4ED, 0x5EE518, 0x5EE549, 0x5EE57E, 0x5EE654, 0x5EE679, 0x5EE69E
-  };
-  DWORD dwSize = sizeof(dwAddressList) / sizeof(DWORD);
+  const FunctionHook *hook = GetFunctionHook(MCI_SEND_CMD_HOOK);
+  LPDWORD lpdwAddressList = hook->addresses;
+  DWORD dwSize = hook->dwNumAddress;
+  LPCSTR lpcsFunctionName = hook->lpcsNewFunction;
   BOOL bSuccess = TRUE;
   HMODULE hModule = GetCurrentModuleHandle();
 
@@ -111,15 +108,41 @@ BOOL PatchMediaPlayback(HANDLE hProcess)
   }
 
   for (DWORD i = 0; i < dwSize; i++) {
-    bSuccess = HookWindowsAPI(hProcess, hModule, MCI_SEND_CMD_HOOK, dwAddressList[i]);
+    bSuccess = HookWindowsAPI(hProcess, hModule, lpcsFunctionName, lpdwAddressList[i]);
 
     if (!bSuccess) {
-      Log("ERROR: Failed to patch media playback.");
+      Log("ERROR: Failed to patch media playback.\n");
       break;
     }
   }
 
   return bSuccess;
+}
+
+BOOL PatchMultiplayer(HANDLE hProcess)
+{
+  HMODULE hModule = GetCurrentModuleHandle();
+
+  if (!hModule) {
+    return FALSE;
+  }
+
+  for (int i = XD_ACTIVATE_SERVER_HOOK; i <= XD_STOP_CONN_HOOK; i++) {
+    const FunctionHook *hook = GetFunctionHook((FunctionHookEnum)i);
+    LPDWORD lpdwAddressList = hook->addresses;
+    DWORD dwSize = hook->dwNumAddress;
+    LPCSTR lpcsFunctionName = hook->lpcsNewFunction;
+
+    for (DWORD j = 0; j < dwSize; j++) {
+      if (!HookWindowsAPI(hProcess, hModule, lpcsFunctionName, lpdwAddressList[j])) {
+        Log("ERROR: Failed to patch multiplayer.\n");
+
+        return FALSE;
+      }
+    }
+  }
+
+  return TRUE;
 }
 
 BOOL PatchMapTilesLimit(HANDLE hProcess, DWORD dwMapTilesLimit)
@@ -131,7 +154,7 @@ BOOL PatchMapTilesLimit(HANDLE hProcess, DWORD dwMapTilesLimit)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 2, 0x41D6FF);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch map tiles limit.");
+    Log("ERROR: Failed to patch map tiles limit.\n");
   }
 
   return bSuccess;
@@ -143,7 +166,7 @@ BOOL PatchHostileAi(HANDLE hProcess)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 8, 0x561FC9);
 
   if(!bSuccess) {
-    Log("ERROR: Failed to patch hostile AI.");
+    Log("ERROR: Failed to patch hostile AI.\n");
   }
 
   return bSuccess;
@@ -182,7 +205,7 @@ BOOL PatchCdCheck(HANDLE hProcess)
 
 PATCH_CD_CHECK_FAILED:
 
-  Log("ERROR: Failed to patch CD check.");
+  Log("ERROR: Failed to patch CD check.\n");
 
   return FALSE;
 }
@@ -197,7 +220,7 @@ BOOL Patch64BitCompatibility(HANDLE hProcess)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 23, 0x5D2A28);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch 64bit compatibility.");
+    Log("ERROR: Failed to patch 64bit compatibility.\n");
   }
 
   return bSuccess;
@@ -229,7 +252,7 @@ BOOL PatchTimeLimit(HANDLE hProcess, DWORD dwRetirementYear, DWORD dwRetirementW
 
 PATCH_TIME_LIMIT_FAILED:
 
-  Log("ERROR: Failed to patch time limit.");
+  Log("ERROR: Failed to patch time limit.\n");
 
   return FALSE;
 }
@@ -243,7 +266,7 @@ BOOL PatchPopulationLimit(HANDLE hProcess, DWORD dwPopulationLimit)
   BOOL bSuccess = (WriteMemory(hProcess, buffer, 4, 0x43CD74) && WriteMemory(hProcess, buffer, 4, 0x43CD81));
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch population limit.");
+    Log("ERROR: Failed to patch population limit.\n");
   }
 
   return bSuccess;
@@ -258,7 +281,7 @@ BOOL PatchGoldLimit(HANDLE hProcess, DWORD dwGoldLimit)
   BOOL bSuccess = (WriteMemory(hProcess, buffer, 4, 0x489608) && WriteMemory(hProcess, buffer, 4, 0x48962A));
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch gold limit.");
+    Log("ERROR: Failed to patch gold limit.\n");
   }
 
   return bSuccess;
@@ -273,12 +296,15 @@ BOOL PatchFastCombat(HANDLE hProcess, DWORD dwCombatAnimationFrameLength)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 1, 0x57F4F6);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch fast combat.");
+    Log("ERROR: Failed to patch fast combat.\n");
   }
 
   return bSuccess;
 }
 
+/**
+ * Messaging overrides.
+ */
 BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
 {
   DWORD dwNow = timeGetTime();
@@ -326,13 +352,16 @@ BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UIN
   return PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
 }
 
+/**
+ * Media overrides.
+ */
 MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID wProxyId, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam)
 {
   if (uMsg == MCI_OPEN && (fdwCommand & MCI_OPEN_TYPE)) {
     MCI_OPEN_PARMS *params = (MCI_OPEN_PARMS *)dwParam;
 
     if (params && !strcmp(params->lpstrDeviceType, MUSIC_DEVICE_NAME)) {
-      if (!InitializeAudio(g_config.dwMusicFreq, g_config.dwMusicChunkSize, g_config.dwMusicVolume, g_config.dwMusicAlbum)) {
+      if (!InitializeAudio(GetMusicFrequency(), GetMusicChunkSize(), GetMusicVolume(), GetMusicAlbum())) {
         return MCIERR_INTERNAL;
       }
 
@@ -397,4 +426,142 @@ MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID wProxyId, UINT uMsg, DWORD_P
   } else {
     return MCIERR_INTERNAL;
   }
+}
+
+/**
+ * Network overrides.
+ */
+int CIV2PATCH_API XD_ActivateServer(void)
+{
+  Log("INFO: XD_ActivateServer\n");
+}
+
+int CIV2PATCH_API XD_CloseConnection(void)
+{
+  Log("INFO: XD_CloseConnection\n");
+}
+
+int CIV2PATCH_API XD_FlushSendBuffer(unsigned long)
+{
+  Log("INFO: XD_FlushSendBuffer\n");
+}
+
+char *CIV2PATCH_API XD_GetCurrentProtoAddr(unsigned int, int)
+{
+  Log("INFO: XD_GetCurrentProtoAddr\n");
+}
+
+int CIV2PATCH_API XD_GetXDaemonVersion(int *, int *, int *)
+{
+  Log("INFO: XD_GetXDaemonVersion\n");
+}
+
+int CIV2PATCH_API XD_InFlushSendBuffer(void)
+{
+  Log("INFO: XD_InFlushSendBuffer\n");
+}
+
+int CIV2PATCH_API XD_InitializeModem(int)
+{
+  Log("INFO: XD_InitializeModem\n");
+}
+
+int CIV2PATCH_API XD_InitializeSerial(int)
+{
+  Log("INFO: XD_InitializeSerial\n");
+}
+
+int CIV2PATCH_API XD_InitializeSocketsIPXSPX(int, int, int, int, unsigned int, void (*)(void *, unsigned short, long))
+{
+  Log("INFO: XD_InitializeSocketsIPXSPX\n");
+}
+
+int CIV2PATCH_API XD_InitializeSocketsTCP(int, int, int, int, unsigned int, void (*)(void *, unsigned short, long))
+{
+  Log("INFO: XD_InitializeSocketsTCP\n");
+}
+
+int CIV2PATCH_API XD_LaunchedByLobby(void *, struct LobbyLaunchInfo *)
+{
+  Log("INFO: XD_LaunchedByLobby\n");
+}
+
+int CIV2PATCH_API XD_LobbySendMessage(unsigned long)
+{
+  Log("INFO: XD_LobbySendMessage\n");
+}
+
+int CIV2PATCH_API XD_OpenConnection(void *, unsigned long)
+{
+  Log("INFO: XD_OpenConnection\n");
+}
+
+int CIV2PATCH_API XD_ResetLibrary(void)
+{
+  Log("INFO: XD_ResetLibrary\n");
+}
+
+int CIV2PATCH_API XD_SendBroadcastData(void *, unsigned long, long)
+{
+  Log("INFO: XD_SendBroadcastData\n");
+}
+
+int CIV2PATCH_API XD_SendSecureData(unsigned short, void *, unsigned long, short)
+{
+  Log("INFO: XD_SendSecureData\n");
+}
+
+int CIV2PATCH_API XD_ServerCloseConnection(unsigned short)
+{
+  Log("INFO: XD_ServerCloseConnection\n");
+}
+
+void CIV2PATCH_API XD_SetBroadcastReceive(void (*)(void *, unsigned short, long))
+{
+  Log("INFO: XD_SetBroadcastReceive\n");
+}
+
+void CIV2PATCH_API XD_SetNewClientConnection(void (*)(unsigned short, unsigned short))
+{
+  Log("INFO: XD_SetNewClientConnection\n");
+}
+
+void CIV2PATCH_API XD_SetOnClientConnectionToServer(void (*)(short))
+{
+  Log("INFO: XD_SetOnClientConnectionToServer\n");
+}
+
+void CIV2PATCH_API XD_SetOnConnectionLost(void (*)(unsigned short))
+{
+  Log("INFO: XD_SetOnConnectionLost\n");
+}
+
+int CIV2PATCH_API XD_SetOversizedMessageCB(unsigned long, void (*)(unsigned long))
+{
+  Log("INFO: XD_SetOversizedMessageCB\n");
+}
+
+void CIV2PATCH_API XD_SetSecureReceive(void (*)(unsigned short, void *, unsigned long, short))
+{
+  Log("INFO: XD_SetSecureReceive\n");
+}
+
+void CIV2PATCH_API XD_ShutdownModem(void)
+{
+  Log("INFO: XD_ShutdownModem\n");
+}
+
+void CIV2PATCH_API XD_ShutdownSockets(void)
+{
+  Log("INFO: XD_ShutdownSockets\n");
+}
+
+void CIV2PATCH_API XD_ShutdownTEN(void)
+{
+  Log("INFO: XD_ShutdownTEN\n");
+}
+
+int CIV2PATCH_API XD_StopConnections(void)
+{
+  Log("INFO: XD_StopConnections\n");
 }

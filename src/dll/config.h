@@ -33,7 +33,6 @@ typedef struct {
   LPVOID lpvValue;
 } ConfigLink;
 
-
 typedef struct {
   // Options
   BOOL bLog;
@@ -69,8 +68,32 @@ typedef struct {
   DWORD dwMusicAlbum; // MGE, Classic, CIC, FW
 } Config;
 
-extern Config g_config;
-
 BOOL InitializeConfig();
+BOOL IsLogEnabled();
+BOOL IsMusicEnabled();
+BOOL IsMultiplayerEnabled();
+BOOL IsFixIdleCpuEnabled();
+BOOL IsFix64BitEnabled();
+BOOL IsNoCdCheckEnabled();
+BOOL IsFixHostileAiEnabled();
+BOOL IsSetRetirementYearEnabled();
+BOOL IsSetCombatAnimationLengthEnabled();
+BOOL IsSetPopulationLimitEnabled();
+BOOL IsSetGoldLimitEnabled();
+BOOL IsSetMapTilesLimitEnabled();
+DWORD GetPurgeMessagesInterval();
+DWORD GetMessageWaitTimeout();
+DWORD GetCombatAnimationLength();
+FLOAT GetSleepRatio();
+DWORD GetCpuSamplingInterval();
+DWORD GetRetirementYear();
+DWORD GetRetirementWarningYear();
+DWORD GetMapTilesLimit();
+DWORD GetPopulationLimit();
+DWORD GetGoldLimit();
+DWORD GetMusicFrequency();
+DWORD GetMusicChunkSize();
+DWORD GetMusicVolume();
+DWORD GetMusicAlbum();
 
 #endif // CONFIG_H

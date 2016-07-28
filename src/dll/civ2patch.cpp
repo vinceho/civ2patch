@@ -40,7 +40,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
         bSuccess = PatchGame(hProcess);
         CloseHandle(hProcess);
       } else {
-        Log("ERROR: Failed to open process.");
+        Log("ERROR: Failed to open process.\n");
       }
       break;
     case DLL_PROCESS_DETACH:

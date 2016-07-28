@@ -34,6 +34,34 @@ BOOL CIV2PATCH_API WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpv
 BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam);
 
+int CIV2PATCH_API XD_ActivateServer(void);
+int CIV2PATCH_API XD_CloseConnection(void);
+int CIV2PATCH_API XD_FlushSendBuffer(unsigned long);
+char *CIV2PATCH_API XD_GetCurrentProtoAddr(unsigned int, int);
+int CIV2PATCH_API XD_GetXDaemonVersion(int *, int *, int *);
+int CIV2PATCH_API XD_InFlushSendBuffer(void);
+int CIV2PATCH_API XD_InitializeModem(int);
+int CIV2PATCH_API XD_InitializeSerial(int);
+int CIV2PATCH_API XD_InitializeSocketsIPXSPX(int, int, int, int, unsigned int, void (*)(void *, unsigned short, long));
+int CIV2PATCH_API XD_InitializeSocketsTCP(int, int, int, int, unsigned int, void (*)(void *, unsigned short, long));
+int CIV2PATCH_API XD_LaunchedByLobby(void *, struct LobbyLaunchInfo *);
+int CIV2PATCH_API XD_LobbySendMessage(unsigned long);
+int CIV2PATCH_API XD_OpenConnection(void *, unsigned long);
+int CIV2PATCH_API XD_ResetLibrary(void);
+int CIV2PATCH_API XD_SendBroadcastData(void *, unsigned long, long);
+int CIV2PATCH_API XD_SendSecureData(unsigned short, void *, unsigned long, short);
+int CIV2PATCH_API XD_ServerCloseConnection(unsigned short);
+void CIV2PATCH_API XD_SetBroadcastReceive(void (*)(void *, unsigned short, long));
+void CIV2PATCH_API XD_SetNewClientConnection(void (*)(unsigned short, unsigned short));
+void CIV2PATCH_API XD_SetOnClientConnectionToServer(void (*)(short));
+void CIV2PATCH_API XD_SetOnConnectionLost(void (*)(unsigned short));
+int CIV2PATCH_API XD_SetOversizedMessageCB(unsigned long, void (*)(unsigned long));
+void CIV2PATCH_API XD_SetSecureReceive(void (*)(unsigned short, void *, unsigned long, short));
+void CIV2PATCH_API XD_ShutdownModem(void);
+void CIV2PATCH_API XD_ShutdownSockets(void);
+void CIV2PATCH_API XD_ShutdownTEN(void);
+int CIV2PATCH_API XD_StopConnections(void);
+
 #ifdef __cplusplus
 }
 #endif

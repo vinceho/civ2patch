@@ -15,29 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <stdio.h>
-#include "log.h"
-#include "constants.h"
-#include "config.h"
+#ifndef NET_H
+#define NET_H
 
-void InitializeLog()
-{
-  if (IsLogEnabled()) {
-    // Purge log file.
-    fclose(fopen(LOG_FILE, "w"));
-  }
-}
-
-void Log(LPCSTR lpcsFormat, ...)
-{
-  if (IsLogEnabled()) {
-    FILE *file = fopen(LOG_FILE, "a");
-
-    va_list args;
-    va_start(args, lpcsFormat);
-    vfprintf(file, lpcsFormat, args);
-    va_end(args);
-
-    fclose(file);
-  }
-}
+#endif // NET_H
