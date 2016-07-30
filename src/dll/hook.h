@@ -66,5 +66,6 @@ typedef struct {
 } FunctionHook;
 
 const FunctionHook *GetFunctionHook(FunctionHookEnum hookId);
+FARPROC GetOriginalFunctionAddress(FunctionHookEnum hookId);
 
 #endif // HOOK_H

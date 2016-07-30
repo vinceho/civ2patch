@@ -16,6 +16,7 @@
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "hook.h"
+#include "log.h"
 
 FunctionHook g_functionHooks[] = {
   { // PEEK_MESSAGE_HOOK
@@ -190,6 +191,24 @@ const FunctionHook *GetFunctionHook(FunctionHookEnum hookId)
 {
   if (hookId < LAST_HOOK) {
     return &g_functionHooks[hookId];
+  }
+
+  return NULL;
+}
+
+FARPROC GetOriginalFunctionAddress(FunctionHookEnum hookId)
+{
+  if (hookId < LAST_HOOK) {
+    const FunctionHook *hook = GetFunctionHook(hookId);
+
+    HMODULE hModule = GetModuleHandle(hook->lpcsModule);
+    FARPROC fpAddress = GetProcAddress(hModule, hook->lpcsFunction);
+
+    if (!fpAddress) {
+      LogError("Cannot get original function '%s' from '%s'.", hook->lpcsFunction, hook->lpcsModule);
+    } else {
+      return fpAddress;
+    }
   }
 
   return NULL;

@@ -24,7 +24,7 @@ HMODULE GetCurrentModuleHandle()
   HMODULE hModule = GetModuleHandle(MODULE_NAME);
 
   if (!hModule) {
-    Log("ERROR: Failed to load %s.\n", MODULE_NAME);
+    LogError("Failed to load %s.", MODULE_NAME);
   }
 
   return hModule;
@@ -35,7 +35,7 @@ BOOL WriteMemory(HANDLE hProcess, LPVOID lpvData, DWORD dwBytes, DWORD dwTargetA
   BOOL bSuccess = WriteProcessMemory(hProcess, (LPVOID)dwTargetAddress, lpvData, dwBytes, NULL);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to write to address 0x%x.\n", dwTargetAddress);
+    LogError("Failed to write to address 0x%x.", dwTargetAddress);
   }
 
   return bSuccess;
@@ -46,7 +46,7 @@ BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpcsFunctionName, D
   DWORD dwAddress = (DWORD)GetProcAddress(hModule, lpcsFunctionName);
 
   if (!dwAddress) {
-    Log("ERROR: Failed to get address of %s.\n", lpcsFunctionName);
+    LogError("Failed to get address of %s.", lpcsFunctionName);
 
     return FALSE;
   }
@@ -62,12 +62,12 @@ BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpcsFunctionName, D
       // Opcode call is 5 bytes.
       dwSize = 5;
     } else {
-      Log("ERROR: Failed to hook '%s' due to unknown opcode at address 0x%x.\n", lpcsFunctionName, dwTargetAddress);
+      LogError("Failed to hook '%s' due to unknown opcode at address 0x%x.", lpcsFunctionName, dwTargetAddress);
 
       return FALSE;
     }
   } else {
-    Log("ERROR: Failed to hook '%s' due to error reading address 0x%x.\n", lpcsFunctionName, dwTargetAddress);
+    LogError("Failed to hook '%s' due to error reading address 0x%x.", lpcsFunctionName, dwTargetAddress);
 
     return FALSE;
   }

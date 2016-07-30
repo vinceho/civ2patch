@@ -21,6 +21,9 @@
 #include <windows.h>
 
 void InitializeLog();
-void Log(LPCSTR lpcsFormat, ...);
+void ShutdownLog();
+void LogInfo(LPCSTR lpcsFormat, ...);
+void LogError(LPCSTR lpcsFormat, ...);
+void LogDebug(LPCSTR lpcsFormat, ...);
 
 #endif // LOG_H

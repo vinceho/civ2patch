@@ -16,6 +16,7 @@
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <SDL2/SDL.h>
+#include <math.h>
 #include "civ2patch.h"
 #include "constants.h"
 #include "game.h"
@@ -24,14 +25,16 @@
 #include "config.h"
 #include "log.h"
 #include "audio.h"
+#include "net.h"
+#include "timer.h"
 
-DWORD g_dwLastMessagePurgeTime = 0;
-DWORD g_dwPurgeMessagesInterval = 0;
 DWORD g_dwMessageWaitTimeout = 0;
-DWORD g_dwStartTime = 0;
-DWORD g_dwTotalSleepTime = 0;
-FLOAT g_fSleepRatio = 0.0f;
-DWORD g_dwCpuSamplingInterval;
+DOUBLE g_dLastMessagePurgeTime = 0.0;
+DOUBLE g_dPurgeMessagesInterval = 0.0;
+DOUBLE g_dStartTime = 0.0;
+DOUBLE g_dTotalSleepTime = 0.0;
+DOUBLE g_dSleepRatio = 0.0;
+DOUBLE g_dCpuSamplingInterval = 0.0;
 
 BOOL PatchIdleCpu(HANDLE);
 BOOL PatchHostileAi(HANDLE);
@@ -49,10 +52,10 @@ BOOL PatchGame(HANDLE hProcess)
 {
   BOOL bSuccess = TRUE;
 
-  g_dwPurgeMessagesInterval = GetPurgeMessagesInterval();
   g_dwMessageWaitTimeout = GetMessageWaitTimeout();
-  g_dwCpuSamplingInterval = GetCpuSamplingInterval();
-  g_fSleepRatio = GetSleepRatio();
+  g_dPurgeMessagesInterval = round((DOUBLE)GetPurgeMessagesInterval() * 1000.0);
+  g_dCpuSamplingInterval = round((DOUBLE)GetCpuSamplingInterval() * 1000.0);
+  g_dSleepRatio = (DOUBLE)GetSleepRatio();
 
   if (IsMusicEnabled()) bSuccess &= PatchMediaPlayback(hProcess);
   if (IsMultiplayerEnabled()) bSuccess &= PatchMultiplayer(hProcess);
@@ -86,7 +89,7 @@ BOOL PatchIdleCpu(HANDLE hProcess)
     bSuccess = HookWindowsAPI(hProcess, hModule, lpcsFunctionName, lpdwAddressList[i]);
 
     if (!bSuccess) {
-      Log("ERROR: Failed to patch idle CPU.\n");
+      LogError("Failed to patch idle CPU.");
       break;
     }
   }
@@ -111,7 +114,7 @@ BOOL PatchMediaPlayback(HANDLE hProcess)
     bSuccess = HookWindowsAPI(hProcess, hModule, lpcsFunctionName, lpdwAddressList[i]);
 
     if (!bSuccess) {
-      Log("ERROR: Failed to patch media playback.\n");
+      LogError("Failed to patch media playback.");
       break;
     }
   }
@@ -135,7 +138,7 @@ BOOL PatchMultiplayer(HANDLE hProcess)
 
     for (DWORD j = 0; j < dwSize; j++) {
       if (!HookWindowsAPI(hProcess, hModule, lpcsFunctionName, lpdwAddressList[j])) {
-        Log("ERROR: Failed to patch multiplayer.\n");
+        LogError("Failed to patch multiplayer.");
 
         return FALSE;
       }
@@ -147,14 +150,14 @@ BOOL PatchMultiplayer(HANDLE hProcess)
 
 BOOL PatchMapTilesLimit(HANDLE hProcess, DWORD dwMapTilesLimit)
 {
-  // Change max number of map tiles from 10,000 to 32,767.
+  // Change max number of map tiles from 10,000.
   BYTE buffer[2];
   ConvertValueToByteArray(dwMapTilesLimit, 2, buffer);
 
   BOOL bSuccess = WriteMemory(hProcess, buffer, 2, 0x41D6FF);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch map tiles limit.\n");
+    LogError("Failed to patch map tiles limit.");
   }
 
   return bSuccess;
@@ -166,7 +169,7 @@ BOOL PatchHostileAi(HANDLE hProcess)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 8, 0x561FC9);
 
   if(!bSuccess) {
-    Log("ERROR: Failed to patch hostile AI.\n");
+    LogError("Failed to patch hostile AI.");
   }
 
   return bSuccess;
@@ -205,7 +208,7 @@ BOOL PatchCdCheck(HANDLE hProcess)
 
 PATCH_CD_CHECK_FAILED:
 
-  Log("ERROR: Failed to patch CD check.\n");
+  LogError("Failed to patch CD check.");
 
   return FALSE;
 }
@@ -220,7 +223,7 @@ BOOL Patch64BitCompatibility(HANDLE hProcess)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 23, 0x5D2A28);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch 64bit compatibility.\n");
+    LogError("Failed to patch 64bit compatibility.");
   }
 
   return bSuccess;
@@ -252,7 +255,7 @@ BOOL PatchTimeLimit(HANDLE hProcess, DWORD dwRetirementYear, DWORD dwRetirementW
 
 PATCH_TIME_LIMIT_FAILED:
 
-  Log("ERROR: Failed to patch time limit.\n");
+  LogError("Failed to patch time limit.");
 
   return FALSE;
 }
@@ -266,7 +269,7 @@ BOOL PatchPopulationLimit(HANDLE hProcess, DWORD dwPopulationLimit)
   BOOL bSuccess = (WriteMemory(hProcess, buffer, 4, 0x43CD74) && WriteMemory(hProcess, buffer, 4, 0x43CD81));
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch population limit.\n");
+    LogError("Failed to patch population limit.");
   }
 
   return bSuccess;
@@ -281,7 +284,7 @@ BOOL PatchGoldLimit(HANDLE hProcess, DWORD dwGoldLimit)
   BOOL bSuccess = (WriteMemory(hProcess, buffer, 4, 0x489608) && WriteMemory(hProcess, buffer, 4, 0x48962A));
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch gold limit.\n");
+    LogError("Failed to patch gold limit.");
   }
 
   return bSuccess;
@@ -296,7 +299,7 @@ BOOL PatchFastCombat(HANDLE hProcess, DWORD dwCombatAnimationFrameLength)
   BOOL bSuccess = WriteMemory(hProcess, buffer, 1, 0x57F4F6);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to patch fast combat.\n");
+    LogError("Failed to patch fast combat.");
   }
 
   return bSuccess;
@@ -307,33 +310,48 @@ BOOL PatchFastCombat(HANDLE hProcess, DWORD dwCombatAnimationFrameLength)
  */
 BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
 {
-  DWORD dwNow = timeGetTime();
-  DWORD dwElapsed = dwNow - g_dwStartTime;
+  DOUBLE dBeginTime = GetTimerCurrentTime();
+  DOUBLE dElapsed = dBeginTime - g_dStartTime;
 
-  if (!g_dwTotalSleepTime) {
+  if (g_dTotalSleepTime < 1.0 || dElapsed < 1.0) {
     MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+
+    DOUBLE dNow = GetTimerCurrentTime();
 
     // Prime the counters.
-    g_dwStartTime = dwNow;
-    g_dwTotalSleepTime = 1;
-  } else if (((FLOAT)(dwElapsed - g_dwTotalSleepTime) / (FLOAT)g_dwTotalSleepTime) >= g_fSleepRatio) {
+    g_dStartTime = dBeginTime;
+    g_dTotalSleepTime = (dNow > dBeginTime) ? (dNow - dBeginTime) : 500.0;
+  } else if (((dElapsed - g_dTotalSleepTime) / g_dTotalSleepTime) >= g_dSleepRatio) {
     MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-    g_dwTotalSleepTime += (timeGetTime() - dwNow);
+
+    DOUBLE dNow = GetTimerCurrentTime();
+
+    // Overflow check.
+    if (dNow >= dBeginTime) {
+      if (dNow == dBeginTime) {
+        // Low resolution timer. Add 0.5 milliseconds to make up for poor precision.
+        g_dTotalSleepTime += 500.0;
+      } else {
+        g_dTotalSleepTime += (dNow - dBeginTime);
+      }
+    } else {
+      g_dTotalSleepTime = 0.0;
+    }
 
     // Reset
-    if (dwElapsed >= g_dwCpuSamplingInterval) {
-      g_dwTotalSleepTime = 0;
+    if (dElapsed >= g_dCpuSamplingInterval) {
+      g_dTotalSleepTime = 0.0;
     }
   }
 
   // Civilization 2 uses filter value 957 as a spinning wait.
   if (wMsgFilterMin == 957) {
-    if (!g_dwLastMessagePurgeTime) {
-      g_dwLastMessagePurgeTime = dwNow;
+    if (g_dLastMessagePurgeTime < 1.0) {
+      g_dLastMessagePurgeTime = dBeginTime;
     }
 
     // Purge message queue to fix "Not Responding" problem during long AI turns.
-    if ((dwNow - g_dwLastMessagePurgeTime) >= g_dwPurgeMessagesInterval) {
+    if ((dBeginTime - g_dLastMessagePurgeTime) >= g_dPurgeMessagesInterval) {
       if (LOWORD(GetQueueStatus(QS_ALLINPUT))) {
         MSG msg;
 
@@ -343,10 +361,10 @@ BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UIN
         }
       }
 
-      g_dwLastMessagePurgeTime = dwNow;
+      g_dLastMessagePurgeTime = dBeginTime;
     }
   } else {
-    g_dwLastMessagePurgeTime = dwNow;
+    g_dLastMessagePurgeTime = dBeginTime;
   }
 
   return PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
@@ -371,7 +389,7 @@ MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID wProxyId, UINT uMsg, DWORD_P
     }
   } else if (IsMusicMciDevice(wProxyId)) {
     if (uMsg == MCI_CLOSE) {
-      if (!CloseAudio()) {
+      if (!ShutdownAudio()) {
         return MCIERR_INTERNAL;
       }
     } else if (uMsg == MCI_STATUS) {
@@ -431,137 +449,509 @@ MCIERROR CIV2PATCH_API mciSendCommandEx(MCIDEVICEID wProxyId, UINT uMsg, DWORD_P
 /**
  * Network overrides.
  */
-int CIV2PATCH_API XD_ActivateServer(void)
+INT CIV2PATCH_API XD_ActivateServer(void)
 {
-  Log("INFO: XD_ActivateServer\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_ACTIVATE_SERVER_HOOK);
+
+  LogDebug("XD_ActivateServer - Starting.");
+
+  if (fpAddress) {
+    nResult = ((INT (*)(void))fpAddress)();
+  }
+
+  LogDebug("XD_ActivateServer - Return(%d).", nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_CloseConnection(void)
+INT CIV2PATCH_API XD_CloseConnection(void)
 {
-  Log("INFO: XD_CloseConnection\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_CLOSE_CONN_HOOK);
+
+  LogDebug("XD_CloseConnection - Starting.");
+
+  if (fpAddress) {
+    nResult = ((INT (*)(void))fpAddress)();
+  }
+
+  LogDebug("XD_CloseConnection - Return(%d).", nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_FlushSendBuffer(unsigned long)
+/**
+ * @param dwTimeout The timeout in milliseconds.
+ *
+ * @return The number of items left to flush before the timing out.
+ */
+INT CIV2PATCH_API XD_FlushSendBuffer(DWORD dwTimeout)
 {
-  Log("INFO: XD_FlushSendBuffer\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_FLUSH_SEND_BUFFER_HOOK);
+
+  LogDebug("XD_FlushSendBuffer(%d) - Starting.", dwTimeout);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(DWORD))fpAddress)(dwTimeout);
+  }
+
+  LogDebug("XD_FlushSendBuffer(%d) - Return(%d).", dwTimeout, nResult);
+
+  return nResult;
 }
 
-char *CIV2PATCH_API XD_GetCurrentProtoAddr(unsigned int, int)
+LPSTR CIV2PATCH_API XD_GetCurrentProtoAddr(UINT unArg, INT nArg)
 {
-  Log("INFO: XD_GetCurrentProtoAddr\n");
+  LPSTR lpsResult = NULL;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_GET_CURRENT_PROTO_ADDR_HOOK);
+
+  LogDebug("XD_GetCurrentProtoAddr(%d, %d) - Starting.", unArg, nArg);
+
+  if (fpAddress) {
+    lpsResult = ((LPSTR (*)(UINT, INT))fpAddress)(unArg, nArg);
+  }
+
+  LogDebug("XD_GetCurrentProtoAddr(%d, %d) - Return(%s).", unArg, nArg, lpsResult);
+
+  return lpsResult;
 }
 
-int CIV2PATCH_API XD_GetXDaemonVersion(int *, int *, int *)
+/**
+ * Get the version of the multiplayer library.
+ *
+ * @param lpnMajor The major version number output.
+ * @param lpnMinor The minor version number output.
+ * @param lpnRevision The revision number output.
+ *
+ * @return Non-zero if failure.
+ */
+INT CIV2PATCH_API XD_GetXDaemonVersion(LPINT lpnMajor, LPINT lpnMinor, LPINT lpnRevision)
 {
-  Log("INFO: XD_GetXDaemonVersion\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_GET_DAEMON_VERSION_HOOK);
+
+  LogDebug("XD_GetXDaemonVersion(%d, %d, %d) - Starting.", *lpnMajor, *lpnMinor, *lpnRevision);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(LPINT, LPINT, LPINT))fpAddress)(lpnMajor, lpnMinor, lpnRevision);
+  }
+
+  LogDebug("XD_GetXDaemonVersion(%d, %d, %d) - Return(%d).", *lpnMajor, *lpnMinor, *lpnRevision, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_InFlushSendBuffer(void)
+INT CIV2PATCH_API XD_InFlushSendBuffer(void)
 {
-  Log("INFO: XD_InFlushSendBuffer\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_IN_FLUSH_SEND_BUFFER_HOOK);
+
+  //LogDebug("XD_InFlushSendBuffer - Starting.");
+
+  if (fpAddress) {
+    nResult = ((INT (*)(void))fpAddress)();
+  }
+
+  //LogDebug("XD_InFlushSendBuffer - Return(%d).", nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_InitializeModem(int)
+INT CIV2PATCH_API XD_InitializeModem(INT nArg)
 {
-  Log("INFO: XD_InitializeModem\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_INIT_MODEM_HOOK);
+
+  LogDebug("XD_InitializeModem(%d) - Starting.", nArg);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(INT))fpAddress)(nArg);
+  }
+
+  LogDebug("XD_InitializeModem(%d) - Return(%d).", nArg, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_InitializeSerial(int)
+INT CIV2PATCH_API XD_InitializeSerial(INT nArg)
 {
-  Log("INFO: XD_InitializeSerial\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_INIT_SERIAL_HOOK);
+
+  LogDebug("XD_InitializeSerial(%d) - Starting.", nArg);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(INT))fpAddress)(nArg);
+  }
+
+  LogDebug("XD_InitializeSerial(%d) - Return(%d).", nArg, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_InitializeSocketsIPXSPX(int, int, int, int, unsigned int, void (*)(void *, unsigned short, long))
+INT CIV2PATCH_API XD_InitializeSocketsIPXSPX(INT nArg1, INT nArg2, INT nArg3, INT nArg4, UINT unArg5, InitializeSocketsCallback callback)
 {
-  Log("INFO: XD_InitializeSocketsIPXSPX\n");
+  SetInitializeSocketsCallback(callback);
+  callback = &OnInitializeSockets;
+
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_INIT_SOCKETS_IPX_SPX_HOOK);
+
+  LogDebug("XD_InitializeSocketsIPXSPX(%d, %d, %d, %d, %d) - Starting.", nArg1, nArg2, nArg3, nArg4, unArg5);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(INT, INT, INT, INT, UINT, InitializeSocketsCallback))fpAddress)(nArg1, nArg2, nArg3, nArg4, unArg5, callback);
+  }
+
+  LogDebug("XD_InitializeSocketsIPXSPX(%d, %d, %d, %d, %d) - Return(%d).", nArg1, nArg2, nArg3, nArg4, unArg5, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_InitializeSocketsTCP(int, int, int, int, unsigned int, void (*)(void *, unsigned short, long))
+INT CIV2PATCH_API XD_InitializeSocketsTCP(INT nArg1, INT nArg2, INT nArg3, INT nArg4, UINT unArg5, InitializeSocketsCallback callback)
 {
-  Log("INFO: XD_InitializeSocketsTCP\n");
+  SetInitializeSocketsCallback(callback);
+  callback = &OnInitializeSockets;
+
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_INIT_SOCKETS_TCP_HOOK);
+
+  LogDebug("XD_InitializeSocketsTCP(%d, %d, %d, %d, %d) - Starting.", nArg1, nArg2, nArg3, nArg4, unArg5);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(INT, INT, INT, INT, UINT, InitializeSocketsCallback))fpAddress)(nArg1, nArg2, nArg3, nArg4, unArg5, callback);
+  }
+
+  LogDebug("XD_InitializeSocketsTCP(%d, %d, %d, %d, %d) - Return(%d).", nArg1, nArg2, nArg3, nArg4, unArg5, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_LaunchedByLobby(void *, struct LobbyLaunchInfo *)
+/**
+ * Create DirectPlay lobby.
+ *
+ * @param lpResult The output containing the lobby information.
+ * @param pLobbyLaunchInfo The lobby configuration.
+ *
+ * @return Non-zero if failure.
+ */
+INT CIV2PATCH_API XD_LaunchedByLobby(LPVOID lpvResult, struct LobbyLaunchInfo *pLobbyLaunchInfo)
 {
-  Log("INFO: XD_LaunchedByLobby\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_LAUNCHED_BY_LOBBY_HOOK);
+
+  LogDebug("XD_LaunchedByLobby - Starting.");
+
+  if (fpAddress) {
+    nResult = ((INT (*)(LPVOID, struct LobbyLaunchInfo *))fpAddress)(lpvResult, pLobbyLaunchInfo);
+  }
+
+  LogDebug("XD_LaunchedByLobby - Return(%d).", nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_LobbySendMessage(unsigned long)
+/**
+ * Send a status message to the DirectPlay lobby.
+ *
+ * @param dwMessageType The DirectPlay lobby message type.
+ *
+ * @return Non-zero if failure.
+ */
+INT CIV2PATCH_API XD_LobbySendMessage(DWORD dwMessageType)
 {
-  Log("INFO: XD_LobbySendMessage\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_LOBBY_SEND_MESSAGE_HOOK);
+
+  LogDebug("XD_LobbySendMessage(%d) - Starting.", dwMessageType);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(DWORD))fpAddress)(dwMessageType);
+  }
+
+  LogDebug("XD_LobbySendMessage(%d) - Return(%d).", dwMessageType, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_OpenConnection(void *, unsigned long)
+INT CIV2PATCH_API XD_OpenConnection(LPVOID lpvArg, DWORD dwArg)
 {
-  Log("INFO: XD_OpenConnection\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_OPEN_CONN_HOOK);
+
+  LogDebug("XD_OpenConnection(%d) - Starting.", dwArg);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(LPVOID, DWORD))fpAddress)(lpvArg, dwArg);
+  }
+
+  LogDebug("XD_OpenConnection(%d) - Return(%d).", dwArg, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_ResetLibrary(void)
+/**
+ * Shutdown all allocated multiplayer resources.
+ *
+ * @return Non-zero if failure.
+ */
+INT CIV2PATCH_API XD_ResetLibrary(void)
 {
-  Log("INFO: XD_ResetLibrary\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_RESET_LIBRARY_HOOK);
+
+  LogDebug("XD_ResetLibrary - Starting.");
+
+  if (fpAddress) {
+    nResult = ((INT (*)(void))fpAddress)();
+  }
+
+  LogDebug("XD_ResetLibrary - Return(%d).", nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_SendBroadcastData(void *, unsigned long, long)
+/**
+ * @return The number of bytes sent.
+ */
+INT CIV2PATCH_API XD_SendBroadcastData(LPVOID lpvMessage, DWORD dwSize, LONG lArg)
 {
-  Log("INFO: XD_SendBroadcastData\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SEND_BROADCAST_DATA_HOOK);
+
+  LogDebug("XD_SendBroadcastData(%d, %d) - Starting.", dwSize, lArg);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(LPVOID, DWORD, LONG))fpAddress)(lpvMessage, dwSize, lArg);
+  }
+
+  LogDebug("XD_SendBroadcastData(%d, %d) - Return(%d).", dwSize, lArg, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_SendSecureData(unsigned short, void *, unsigned long, short)
+INT CIV2PATCH_API XD_SendSecureData(WORD wArg, LPVOID lpvArg, DWORD dwArg, SHORT sArg)
 {
-  Log("INFO: XD_SendSecureData\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SEND_SECURE_DATA_HOOK);
+
+  LogDebug("XD_SendSecureData(%d, %d, %d) - Starting.", wArg, dwArg, sArg);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(WORD, LPVOID, DWORD, SHORT))fpAddress)(wArg, lpvArg, dwArg, sArg);
+  }
+
+  LogDebug("XD_SendSecureData(%d, %d, %d) - Return(%d).", wArg, dwArg, sArg, nResult);
+
+  return nResult;
 }
 
-int CIV2PATCH_API XD_ServerCloseConnection(unsigned short)
+INT CIV2PATCH_API XD_ServerCloseConnection(WORD wArg)
 {
-  Log("INFO: XD_ServerCloseConnection\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SERVER_CLOSE_CONN_HOOK);
+
+  LogDebug("XD_ServerCloseConnection(%d) - Starting.", wArg);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(WORD))fpAddress)(wArg);
+  }
+
+  LogDebug("XD_ServerCloseConnection(%d) - Return(%d).", wArg, nResult);
+
+  return nResult;
 }
 
-void CIV2PATCH_API XD_SetBroadcastReceive(void (*)(void *, unsigned short, long))
+/**
+ * Set the callback for receiving a broadcast message.
+ *
+ * @param callback The callback function.
+ */
+void CIV2PATCH_API XD_SetBroadcastReceive(BroadcastReceiveCallback callback)
 {
-  Log("INFO: XD_SetBroadcastReceive\n");
+  SetBroadcastReceiveCallback(callback);
+  callback = &OnBroadcastReceive;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SET_BROADCAST_RECEIVE_HOOK);
+
+  LogDebug("XD_SetBroadcastReceive.");
+
+  if (fpAddress) {
+    ((void (*)(BroadcastReceiveCallback))fpAddress)(callback);
+  }
 }
 
-void CIV2PATCH_API XD_SetNewClientConnection(void (*)(unsigned short, unsigned short))
+/**
+ * Set the server callback for accepting a client connection.
+ *
+ * @param callback The callback function.
+ */
+void CIV2PATCH_API XD_SetNewClientConnection(NewClientConnectionCallback callback)
 {
-  Log("INFO: XD_SetNewClientConnection\n");
+  SetNewClientConnectionCallback(callback);
+  callback = &OnNewClientConnection;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SET_NEW_CLIENT_CONN_HOOK);
+
+  LogDebug("XD_SetNewClientConnection.");
+
+  if (fpAddress) {
+    ((void (*)(NewClientConnectionCallback))fpAddress)(callback);
+  }
 }
 
-void CIV2PATCH_API XD_SetOnClientConnectionToServer(void (*)(short))
+/**
+ * Set the client callback for being connected to the server.
+ *
+ * @param callback The callback function.
+ */
+void CIV2PATCH_API XD_SetOnClientConnectionToServer(ClientConnectionToServerCallback callback)
 {
-  Log("INFO: XD_SetOnClientConnectionToServer\n");
+  SetClientConnectionToServerCallback(callback);
+  callback = &OnClientConnectionToServer;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SET_ON_CLIENT_CONN_SERVER_HOOK);
+
+  LogDebug("XD_SetOnClientConnectionToServer.");
+
+  if (fpAddress) {
+    ((void (*)(ClientConnectionToServerCallback))fpAddress)(callback);
+  }
 }
 
-void CIV2PATCH_API XD_SetOnConnectionLost(void (*)(unsigned short))
+/**
+ * Set the client callback for losing connection to the server.
+ *
+ * @param callback The callback function.
+ */
+void CIV2PATCH_API XD_SetOnConnectionLost(ConnectionLostCallback callback)
 {
-  Log("INFO: XD_SetOnConnectionLost\n");
+  SetConnectionLostCallback(callback);
+  callback = &OnConnectionLost;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SET_ON_CONN_LOST_HOOK);
+
+  LogDebug("XD_SetOnConnectionLost.");
+
+  if (fpAddress) {
+    ((void (*)(ConnectionLostCallback))fpAddress)(callback);
+  }
 }
 
-int CIV2PATCH_API XD_SetOversizedMessageCB(unsigned long, void (*)(unsigned long))
+/**
+ * Set the callback for sending a message that exceeds the maximum size.
+ * The callback can be triggered during  XD_SendSecureData.
+ *
+ * @param dwMaxSize The maximum size in bytes. The callback will be called if
+ *   the message is equal or larger than this size.
+ * @param callback The callback function.
+ *
+ * @return Non-zero if failure.
+ */
+INT CIV2PATCH_API XD_SetOversizedMessageCB(DWORD dwMaxSize, OversizedMessageCallback callback)
 {
-  Log("INFO: XD_SetOversizedMessageCB\n");
+  SetOversizedMessageCallback(callback);
+  callback = &OnOversizedMessage;
+
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SET_OVERSIZED_MESSAGE_CB_HOOK);
+
+  LogDebug("XD_SetOversizedMessageCB(%d) - Starting.", dwMaxSize);
+
+  if (fpAddress) {
+    nResult = ((INT (*)(DWORD, OversizedMessageCallback))fpAddress)(dwMaxSize, callback);
+  }
+
+  LogDebug("XD_SetOversizedMessageCB(%d) - Return(%d).", dwMaxSize, nResult);
+
+  return nResult;
 }
 
-void CIV2PATCH_API XD_SetSecureReceive(void (*)(unsigned short, void *, unsigned long, short))
+/**
+ * Set the callback for receiving a message.
+ *
+ * @param callback The callback function.
+ */
+void CIV2PATCH_API XD_SetSecureReceive(SecureReceiveCallback callback)
 {
-  Log("INFO: XD_SetSecureReceive\n");
+  SetSecureReceiveCallback(callback);
+  callback = &OnSecureReceive;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SET_SECURE_RECEIVE_HOOK);
+
+  LogDebug("XD_SetSecureReceive.");
+
+  if (fpAddress) {
+    ((void (*)(SecureReceiveCallback))fpAddress)(callback);
+  }
 }
 
 void CIV2PATCH_API XD_ShutdownModem(void)
 {
-  Log("INFO: XD_ShutdownModem\n");
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SHUTDOWN_MODEM_HOOK);
+
+  LogDebug("XD_ShutdownModem.");
+
+  if (fpAddress) {
+    ((void (*)(void))fpAddress)();
+  }
 }
 
 void CIV2PATCH_API XD_ShutdownSockets(void)
 {
-  Log("INFO: XD_ShutdownSockets\n");
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SHUTDOWN_SOCKETS_HOOK);
+
+  LogDebug("XD_ShutdownSockets.");
+
+  if (fpAddress) {
+    ((void (*)(void))fpAddress)();
+  }
 }
 
 void CIV2PATCH_API XD_ShutdownTEN(void)
 {
-  Log("INFO: XD_ShutdownTEN\n");
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_SHUTDOWN_TEN_HOOK);
+
+  LogDebug("XD_ShutdownTEN.");
+
+  if (fpAddress) {
+    ((void (*)(void))fpAddress)();
+  }
 }
 
-int CIV2PATCH_API XD_StopConnections(void)
+INT CIV2PATCH_API XD_StopConnections(void)
 {
-  Log("INFO: XD_StopConnections\n");
+  INT nResult = -1;
+
+  FARPROC fpAddress = GetOriginalFunctionAddress(XD_STOP_CONN_HOOK);
+
+  LogDebug("XD_StopConnections - Starting.");
+
+  if (fpAddress) {
+    nResult = ((INT (*)(void))fpAddress)();
+  }
+
+  LogDebug("XD_StopConnections - Return(%d).", nResult);
+
+  return nResult;
 }

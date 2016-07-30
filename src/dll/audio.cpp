@@ -89,7 +89,8 @@ BOOL InitializeAudio(DWORD dwFreq, DWORD dwChunkSize, DWORD dwVolume, DWORD dwAl
         || !_Mix_OpenAudio || !_Mix_LoadMUS || !_Mix_PlayMusic
         || !_Mix_HookMusicFinished || !_Mix_VolumeMusic || !_Mix_FreeMusic
         || !_Mix_CloseAudio || !_Mix_Quit) {
-      Log("ERROR: Failed to load audio libraries.\n");
+      LogError("Failed to load audio libraries.");
+
       return FALSE;
     }
 
@@ -101,19 +102,19 @@ BOOL InitializeAudio(DWORD dwFreq, DWORD dwChunkSize, DWORD dwVolume, DWORD dwAl
 
       _Mix_HookMusicFinished(NotifyMusicFinishedHandler);
     } else {
-      Log("ERROR: Failed to initialize audio: %s.\n", _SDL_GetError());
+      LogError("Failed to initialize audio: %s.", _SDL_GetError());
       return FALSE;
     }
 
     return TRUE;
   } else {
-    Log("ERROR: Failed to load audio libraries.\n");
+    LogError("Failed to load audio libraries.");
   }
 
   return FALSE;
 }
 
-BOOL CloseAudio()
+BOOL ShutdownAudio()
 {
   g_dwMusicAlbum = 0;
   g_hNotifyMusicFinishedCallback = NULL;
@@ -182,13 +183,13 @@ BOOL PlayMusic(DWORD dwTrack, HWND hNotifyMusicFinishedCallback) {
   g_music = LoadMusic(dwTrack);
 
   if (!g_music) {
-    Log("ERROR: Failed to load music track %d: %s.\n", dwTrack, _SDL_GetError());
+    LogError("Failed to load music track %d: %s.", dwTrack, _SDL_GetError());
 
     return FALSE;
   }
 
   if(_Mix_PlayMusic(g_music, 1)) {
-    Log("ERROR: Failed to play music track %d: %s.\n", dwTrack, _SDL_GetError());
+    LogError("Failed to play music track %d: %s.", dwTrack, _SDL_GetError());
 
     return FALSE;
   }

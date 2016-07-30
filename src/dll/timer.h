@@ -15,19 +15,12 @@
  * You should have received a copy of the GNU General Public License
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef AUDIO_H
-#define AUDIO_H
+#ifndef TIMER_H
+#define TIMER_H
 
 #include <windows.h>
 
-BOOL InitializeAudio(DWORD dwFreq, DWORD dwChunkSize, DWORD dwVolume, DWORD dwAlbum);
-BOOL ShutdownAudio();
-DWORD GetNumberMusicTracks();
-MCIDEVICEID AddMciDevice(MCIDEVICEID wId);
-MCIDEVICEID GetMciDevice(MCIDEVICEID wProxyId);
-void RemoveMciDevice(MCIDEVICEID wProxyId);
-BOOL IsMusicMciDevice(MCIDEVICEID wProxyId);
-BOOL PlayMusic(DWORD dwTrack, HWND hNotifyMusicFinishedCallback);
-void StopMusic();
+BOOL InitializeTimer();
+DOUBLE GetTimerCurrentTime();
 
-#endif // AUDIO_H
+#endif // TIMER_H

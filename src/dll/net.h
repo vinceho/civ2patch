@@ -18,4 +18,30 @@
 #ifndef NET_H
 #define NET_H
 
+#include <windows.h>
+
+typedef void (*InitializeSocketsCallback)(LPVOID, WORD, LONG);
+typedef void (*BroadcastReceiveCallback)(LPVOID, WORD, LONG);
+typedef void (*NewClientConnectionCallback)(WORD, WORD);
+typedef void (*ClientConnectionToServerCallback)(SHORT);
+typedef void (*ConnectionLostCallback)(WORD);
+typedef void (*OversizedMessageCallback)(DWORD);
+typedef void (*SecureReceiveCallback)(WORD, LPVOID, DWORD, SHORT);
+
+void SetInitializeSocketsCallback(InitializeSocketsCallback callback);
+void SetBroadcastReceiveCallback(BroadcastReceiveCallback callback);
+void SetNewClientConnectionCallback(NewClientConnectionCallback callback);
+void SetClientConnectionToServerCallback(ClientConnectionToServerCallback callback);
+void SetConnectionLostCallback(ConnectionLostCallback callback);
+void SetOversizedMessageCallback(OversizedMessageCallback callback);
+void SetSecureReceiveCallback(SecureReceiveCallback callback);
+
+void OnInitializeSockets(LPVOID, WORD, LONG);
+void OnBroadcastReceive(LPVOID, WORD, LONG);
+void OnNewClientConnection(WORD, WORD);
+void OnClientConnectionToServer(SHORT);
+void OnConnectionLost(WORD);
+void OnOversizedMessage(DWORD);
+void OnSecureReceive(WORD, LPVOID, DWORD, SHORT);
+
 #endif // NET_H

@@ -122,7 +122,7 @@ BOOL ValidateConfig()
   g_config.dwGoldLimit = GetMinMax(30000, g_config.dwGoldLimit, 2147483647);
   g_config.dwCombatAnimationLength = GetMinMax(0, g_config.dwCombatAnimationLength, 64);
   g_config.fSleepRatio = GetMinMaxFloat(0.1f, g_config.fSleepRatio, 10.0f);
-  g_config.dwCpuSamplingInterval = GetMinMax(100, g_config.dwCpuSamplingInterval, 10000);
+  g_config.dwCpuSamplingInterval = GetMinMax(1000, g_config.dwCpuSamplingInterval, 60000);
 
   // Music
   g_config.dwMusicFreq = GetMinMax(11025, g_config.dwMusicFreq, 44100);
@@ -243,7 +243,7 @@ BOOL IsMusicEnabled()
 
 BOOL IsMultiplayerEnabled()
 {
-  return FALSE;
+  return TRUE;
 }
 
 BOOL IsFixIdleCpuEnabled()
