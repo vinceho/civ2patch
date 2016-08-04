@@ -19,29 +19,47 @@
 #define NET_H
 
 #include <windows.h>
+#include "civ2patch.h"
+#include "netmessagebuffer.h"
 
-typedef void (*InitializeSocketsCallback)(LPVOID, WORD, LONG);
-typedef void (*BroadcastReceiveCallback)(LPVOID, WORD, LONG);
-typedef void (*NewClientConnectionCallback)(WORD, WORD);
-typedef void (*ClientConnectionToServerCallback)(SHORT);
-typedef void (*ConnectionLostCallback)(WORD);
-typedef void (*OversizedMessageCallback)(DWORD);
-typedef void (*SecureReceiveCallback)(WORD, LPVOID, DWORD, SHORT);
+#define NET_SOCKET_MODE_DIRECT    1
+#define NET_SOCKET_MODE_BROADCAST 2
+#define NET_BROADCAST_IP          "255.255.255.255"
+#define NET_ADDRESS_CHAR_MAX      16
 
-void SetInitializeSocketsCallback(InitializeSocketsCallback callback);
-void SetBroadcastReceiveCallback(BroadcastReceiveCallback callback);
-void SetNewClientConnectionCallback(NewClientConnectionCallback callback);
-void SetClientConnectionToServerCallback(ClientConnectionToServerCallback callback);
-void SetConnectionLostCallback(ConnectionLostCallback callback);
-void SetOversizedMessageCallback(OversizedMessageCallback callback);
-void SetSecureReceiveCallback(SecureReceiveCallback callback);
+typedef struct {
+  // Callbacks.
+  InitializeSocketsCallback fpInitializeSocketsCallback;
+  BroadcastReceiveCallback fpBroadcastReceiveCallback;
+  NewClientConnectionCallback fpNewClientConnectionCallback;
+  ClientConnectionToServerCallback fpClientConnectionToServerCallback;
+  ConnectionLostCallback fpConnectionLostCallback;
+  OversizedMessageCallback fpOversizedMessageCallback;
+  SecureReceiveCallback fpSecureReceiveCallback;
+  // Configuration.
+  DWORD dwMessageMaxSize;
+} NetConfig;
 
-void OnInitializeSockets(LPVOID, WORD, LONG);
-void OnBroadcastReceive(LPVOID, WORD, LONG);
-void OnNewClientConnection(WORD, WORD);
-void OnClientConnectionToServer(SHORT);
-void OnConnectionLost(WORD);
-void OnOversizedMessage(DWORD);
-void OnSecureReceive(WORD, LPVOID, DWORD, SHORT);
+typedef struct {
+  IPaddress directIP;
+  TCPsocket directSocket;
+  IPaddress broadcastIP;
+  UDPsocket boardcastSocket;
+  SDLNet_SocketSet socketSet;
+  BOOL bServer;
+  INT nDirectPort;
+  UINT unMaxConnection;
+} NetConnection;
+
+typedef struct {
+  TCPsocket *clientSockets;
+  NetMessageBuffer **buffers;
+  UINT unNumClient;
+} NetServer;
+
+typedef struct {
+  NetMessageBuffer *buffer;
+  UINT unClientId;
+} NetClient;
 
 #endif // NET_H

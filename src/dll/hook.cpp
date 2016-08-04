@@ -37,17 +37,17 @@ FunctionHook g_functionHooks[] = {
     60
   },
   { // XD_ACTIVATE_SERVER_HOOK
-    "XD_ActivateServer", NET_MODULE, "?XD_ActivateServer@@YAHXZ",
+    "Net_ActivateServer", NET_MODULE, "?XD_ActivateServer@@YAHXZ",
     (DWORD[]){ 0x59B191 },
     1
   },
   { // XD_CLOSE_CONN_HOOK
-    "XD_CloseConnection", NET_MODULE, "?XD_CloseConnection@@YAHXZ",
+    "Net_CloseConnection", NET_MODULE, "?XD_CloseConnection@@YAHXZ",
     (DWORD[]){ 0x422636, 0x482E56, 0x59B31E },
     3
   },
   { // XD_FLUSH_SEND_BUFFER_HOOK
-    "XD_FlushSendBuffer", NET_MODULE, "?XD_FlushSendBuffer@@YAHK@Z",
+    "Net_FlushSendBuffer", NET_MODULE, "?XD_FlushSendBuffer@@YAHK@Z",
     (DWORD[]){
       0x41FEBD, 0x41FF8D, 0x41FF9F, 0x422477, 0x422DBA, 0x423024, 0x4230F1, 0x423967, 0x423A08, 0x423A97,
       0x423B88, 0x423C57, 0x423D9A, 0x423FC5, 0x440306, 0x441A5D, 0x47F487, 0x47F4A9, 0x47F4E8, 0x47F527,
@@ -63,17 +63,12 @@ FunctionHook g_functionHooks[] = {
     91
   },
   { // XD_GET_CURRENT_PROTO_ADDR_HOOK
-    "XD_GetCurrentProtoAddr", NET_MODULE, "?XD_GetCurrentProtoAddr@@YAPADIH@Z",
+    "Net_GetCurrentProtoAddr", NET_MODULE, "?XD_GetCurrentProtoAddr@@YAPADIH@Z",
     (DWORD[]){ 0x444F2C, 0x444F48, 0x4452EC, 0x4453AB },
     4
   },
-  { // XD_GET_DAEMON_VERSION_HOOK
-    "XD_GetXDaemonVersion", NET_MODULE, "?XD_GetXDaemonVersion@@YAHPAH00@Z",
-    (DWORD[]){ 0x41F383 },
-    1
-  },
   { // XD_IN_FLUSH_SEND_BUFFER_HOOK
-    "XD_InFlushSendBuffer", NET_MODULE, "?XD_InFlushSendBuffer@@YAHXZ",
+    "Net_InFlushSendBuffer", NET_MODULE, "?XD_InFlushSendBuffer@@YAHXZ",
     (DWORD[]){
       0x410FA1, 0x411732, 0x412659, 0x47EAD3, 0x47EB07, 0x4E280C, 0x5095A9, 0x509BAE, 0x50A509, 0x50B79B,
       0x50BAEB, 0x50C1DA
@@ -81,107 +76,107 @@ FunctionHook g_functionHooks[] = {
     12
   },
   { // XD_INIT_MODEM_HOOK
-    "XD_InitializeModem", NET_MODULE, "?XD_InitializeModem@@YAHH@Z",
+    "Net_InitializeModem", NET_MODULE, "?XD_InitializeModem@@YAHH@Z",
     (DWORD[]){ 0x59B07F },
     1
   },
   { // XD_INIT_SERIAL_HOOK
-    "XD_InitializeSerial", NET_MODULE, "?XD_InitializeSerial@@YAHH@Z",
+    "Net_InitializeSerial", NET_MODULE, "?XD_InitializeSerial@@YAHH@Z",
     (DWORD[]){ 0x59B101 },
     1
   },
   { // XD_INIT_SOCKETS_IPX_SPX_HOOK
-    "XD_InitializeSocketsIPXSPX", NET_MODULE, "?XD_InitializeSocketsIPXSPX@@YAHHHHHIP6AXPAXGJ@Z@Z",
+    "Net_InitializeSocketsIPXSPX", NET_MODULE, "?XD_InitializeSocketsIPXSPX@@YAHHHHHIP6AXPAXGJ@Z@Z",
     (DWORD[]){ 0x59AF90 },
     1
   },
   { // XD_INIT_SOCKETS_TCP_HOOK
-    "XD_InitializeSocketsTCP", NET_MODULE, "?XD_InitializeSocketsTCP@@YAHHHHHIP6AXPAXGJ@Z@Z",
+    "Net_InitializeSocketsTCP", NET_MODULE, "?XD_InitializeSocketsTCP@@YAHHHHHIP6AXPAXGJ@Z@Z",
     (DWORD[]){ 0x59AE83 },
     1
   },
   { // XD_LAUNCHED_BY_LOBBY_HOOK
-    "XD_LaunchedByLobby", NET_MODULE, "?XD_LaunchedByLobby@@YAHPAXPAULobbyLaunchInfo@@@Z",
+    "Net_LaunchedByLobby", NET_MODULE, "?XD_LaunchedByLobby@@YAHPAXPAULobbyLaunchInfo@@@Z",
     (DWORD[]){ 0x41F990 },
     1
   },
   { // XD_LOBBY_SEND_MESSAGE_HOOK
-    "XD_LobbySendMessage", NET_MODULE, "?XD_LobbySendMessage@@YAHK@Z",
+    "Net_LobbySendMessage", NET_MODULE, "?XD_LobbySendMessage@@YAHK@Z",
     (DWORD[]){ 0x41FAA1, 0x42230E, 0x422343, 0x56E4B6, 0x56E4EB },
     5
   },
   { // XD_OPEN_CONN_HOOK
-    "XD_OpenConnection", NET_MODULE, "?XD_OpenConnection@@YAHPAXK@Z",
+    "Net_OpenConnection", NET_MODULE, "?XD_OpenConnection@@YAHPAXK@Z",
     (DWORD[]){ 0x422069, 0x422246, 0x422C78, 0x482F39 },
     4
   },
   { // XD_RESET_LIBRARY_HOOK
-    "XD_ResetLibrary", NET_MODULE, "?XD_ResetLibrary@@YAHXZ",
+    "Net_ResetLibrary", NET_MODULE, "?XD_ResetLibrary@@YAHXZ",
     (DWORD[]){ 0x59B4C2, 0x59B4FA },
     2
   },
   { // XD_SEND_BROADCAST_DATA_HOOK
-    "XD_SendBroadcastData", NET_MODULE, "?XD_SendBroadcastData@@YAHPAXKJ@Z",
+    "Net_SendBroadcastData", NET_MODULE, "?XD_SendBroadcastData@@YAHPAXKJ@Z",
     (DWORD[]){ 0x46B0CB},
     1
   },
   { // XD_SEND_SECURE_DATA_HOOK
-    "XD_SendSecureData", NET_MODULE, "?XD_SendSecureData@@YAHGPAXKF@Z",
+    "Net_SendSecureData", NET_MODULE, "?XD_SendSecureData@@YAHGPAXKF@Z",
     (DWORD[]){ 0x46B016 },
     1
   },
   { // XD_SERVER_CLOSE_CONN_HOOK
-    "XD_ServerCloseConnection", NET_MODULE, "?XD_ServerCloseConnection@@YAHG@Z",
+    "Net_ServerCloseConnection", NET_MODULE, "?XD_ServerCloseConnection@@YAHG@Z",
     (DWORD[]){ 0x56E609 },
     1
   },
   { // XD_SET_BROADCAST_RECEIVE_HOOK
-    "XD_SetBroadcastReceive", NET_MODULE, "?XD_SetBroadcastReceive@@YAXP6AXPAXGJ@Z@Z",
+    "Net_SetBroadcastReceive", NET_MODULE, "?XD_SetBroadcastReceive@@YAXP6AXPAXGJ@Z@Z",
     (DWORD[]){ 0x59A90E },
     1
   },
   { // XD_SET_NEW_CLIENT_CONN_HOOK
-    "XD_SetNewClientConnection", NET_MODULE, "?XD_SetNewClientConnection@@YAXP6AXGG@Z@Z",
+    "Net_SetNewClientConnection", NET_MODULE, "?XD_SetNewClientConnection@@YAXP6AXGG@Z@Z",
     (DWORD[]){ 0x59A935 },
     1
   },
   { // XD_SET_ON_CLIENT_CONN_SERVER_HOOK
-    "XD_SetOnClientConnectionToServer", NET_MODULE, "?XD_SetOnClientConnectionToServer@@YAXP6AXF@Z@Z",
+    "Net_SetOnClientConnectionToServer", NET_MODULE, "?XD_SetOnClientConnectionToServer@@YAXP6AXF@Z@Z",
     (DWORD[]){ 0x59A928 },
     1
   },
   { // XD_SET_ON_CONN_LOST_HOOK
-    "XD_SetOnConnectionLost", NET_MODULE, "?XD_SetOnConnectionLost@@YAXP6AXG@Z@Z",
+    "Net_SetOnConnectionLost", NET_MODULE, "?XD_SetOnConnectionLost@@YAXP6AXG@Z@Z",
     (DWORD[]){ 0x59A942 },
     1
   },
   { // XD_SET_OVERSIZED_MESSAGE_CB_HOOK
-    "XD_SetOversizedMessageCB", NET_MODULE, "?XD_SetOversizedMessageCB@@YAHKP6AXK@Z@Z",
+    "Net_SetOversizedMessageCB", NET_MODULE, "?XD_SetOversizedMessageCB@@YAHKP6AXK@Z@Z",
     (DWORD[]){ 0x59A954 },
     1
   },
   { // XD_SET_SECURE_RECEIVE_HOOK
-    "XD_SetSecureReceive", NET_MODULE, "?XD_SetSecureReceive@@YAXP6AXGPAXKF@Z@Z",
+    "Net_SetSecureReceive", NET_MODULE, "?XD_SetSecureReceive@@YAXP6AXGPAXKF@Z@Z",
     (DWORD[]){ 0x59A91B },
     1
   },
   { // XD_SHUTDOWN_MODEM_HOOK
-    "XD_ShutdownModem", NET_MODULE, "?XD_ShutdownModem@@YAXXZ",
+    "Net_ShutdownModem", NET_MODULE, "?XD_ShutdownModem@@YAXXZ",
     (DWORD[]){ 0x59B38A },
     1
   },
   { // XD_SHUTDOWN_SOCKETS_HOOK
-    "XD_ShutdownSockets", NET_MODULE, "?XD_ShutdownSockets@@YAXXZ",
+    "Net_ShutdownSockets", NET_MODULE, "?XD_ShutdownSockets@@YAXXZ",
     (DWORD[]){ 0x59B35C, 0x59B373 },
     2
   },
   { // XD_SHUTDOWN_TEN_HOOK
-    "XD_ShutdownTEN", NET_MODULE, "?XD_ShutdownTEN@@YAXXZ",
+    "Net_ShutdownTEN", NET_MODULE, "?XD_ShutdownTEN@@YAXXZ",
     (DWORD[]){ 0x59B3A1 },
     1
   },
   { // XD_STOP_CONN_HOOK
-    "XD_StopConnections", NET_MODULE, "?XD_StopConnections@@YAHXZ",
+    "Net_StopConnections", NET_MODULE, "?XD_StopConnections@@YAHXZ",
     (DWORD[]){ 0x56E6CA, 0x56E983, 0x56E9E2, 0x56EA93 },
     4
   }

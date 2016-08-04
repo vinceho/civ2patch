@@ -25,5 +25,6 @@ void ShutdownLog();
 void LogInfo(LPCSTR lpcsFormat, ...);
 void LogError(LPCSTR lpcsFormat, ...);
 void LogDebug(LPCSTR lpcsFormat, ...);
+void LogTrace(LPCSTR lpcsFormat, ...);
 
 #endif // LOG_H

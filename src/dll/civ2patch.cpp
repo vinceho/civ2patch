@@ -23,6 +23,7 @@
 #include "config.h"
 #include "timer.h"
 #include "log.h"
+#include "sdllibrary.h"
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
 {
@@ -46,6 +47,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
       }
       break;
     case DLL_PROCESS_DETACH:
+      ShutdownSdlNetLibrary();
+      ShutdownSdlLibrary();
       ShutdownLog();
       break;
     case DLL_THREAD_ATTACH:

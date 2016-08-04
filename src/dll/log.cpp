@@ -84,3 +84,13 @@ void LogDebug(LPCSTR lpcsFormat, ...)
     va_end(args);
   }
 }
+
+void LogTrace(LPCSTR lpcsFormat, ...)
+{
+  if (IsLogEnabled()) {
+    va_list args;
+    va_start(args, lpcsFormat);
+    Log(lpcsFormat, "TRACE", args);
+    va_end(args);
+  }
+}
