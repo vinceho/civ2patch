@@ -77,11 +77,13 @@ void OnInitializeSockets(LPVOID lpvArg1, WORD wArg2, LONG lArg3)
  */
 void OnBroadcastReceive(LPVOID lpvMessage, WORD wSize, LONG lArg)
 {
-  LogDebug("OnBroadcastReceive(%d, %d).", wSize, lArg);
+  LogDebug("OnBroadcastReceive(%d, %d) - Starting.", wSize, lArg);
 
   if (g_orgBroadcastReceiveCallback) {
     g_orgBroadcastReceiveCallback(lpvMessage, wSize, lArg);
   }
+
+  LogDebug("OnBroadcastReceive(%d, %d) - Return.", wSize, lArg);
 }
 
 /**
@@ -90,11 +92,13 @@ void OnBroadcastReceive(LPVOID lpvMessage, WORD wSize, LONG lArg)
  */
 void OnNewClientConnection(WORD wClientId, WORD wServerId)
 {
-  LogDebug("OnNewClientConnection(%d, %d).", wClientId, wServerId);
+  LogDebug("OnNewClientConnection(%d, %d) - Starting.", wClientId, wServerId);
 
   if (g_orgNewClientConnectionCallback) {
     g_orgNewClientConnectionCallback(wClientId, wServerId);
   }
+
+  LogDebug("OnNewClientConnection(%d, %d) - Return.", wClientId, wServerId);
 }
 
 /*
@@ -102,11 +106,13 @@ void OnNewClientConnection(WORD wClientId, WORD wServerId)
  */
 void OnClientConnectionToServer(SHORT sServerId)
 {
-  LogDebug("OnClientConnectionToServer(%d).", sServerId);
+  LogDebug("OnClientConnectionToServer(%d). - Starting", sServerId);
 
   if (g_orgClientConnectionToServerCallback) {
     g_orgClientConnectionToServerCallback(sServerId);
   }
+
+  LogDebug("OnClientConnectionToServer(%d) - Return.", sServerId);
 }
 
 /**
@@ -114,11 +120,13 @@ void OnClientConnectionToServer(SHORT sServerId)
  */
 void OnConnectionLost(WORD wId)
 {
-  LogDebug("OnConnectionLost(%d).", wId);
+  LogDebug("OnConnectionLost(%d) - Starting.", wId);
 
   if (g_orgConnectionLostCallback) {
     g_orgConnectionLostCallback(wId);
   }
+
+  LogDebug("OnConnectionLost(%d) - Return.", wId);
 }
 
 /**
@@ -126,11 +134,13 @@ void OnConnectionLost(WORD wId)
  */
 void OnOversizedMessage(DWORD dwSize)
 {
-  LogDebug("OnOversizedMessage(%d).", dwSize);
+  LogDebug("OnOversizedMessage(%d) - Starting.", dwSize);
 
   if (g_orgOversizedMessageCallback) {
     g_orgOversizedMessageCallback(dwSize);
   }
+
+  LogDebug("OnOversizedMessage(%d) - Return.", dwSize);
 }
 
 /**
@@ -141,9 +151,11 @@ void OnOversizedMessage(DWORD dwSize)
  */
 void OnSecureReceive(WORD wDestId, LPVOID lpvMessage, DWORD dwSize, SHORT sArg)
 {
-  LogDebug("OnSecureReceive(%d).", dwSize);
+  LogDebug("OnSecureReceive(%u, %u, %d) - Starting.", wDestId, dwSize, sArg);
 
   if (g_orgSecureReceiveCallback) {
     g_orgSecureReceiveCallback(wDestId, lpvMessage, dwSize, sArg);
   }
+
+  LogDebug("OnSecureReceive(%u, %u, %d) - Return.", wDestId, dwSize, sArg);
 }

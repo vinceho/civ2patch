@@ -554,13 +554,13 @@ INT CIV2PATCH_API XD_InFlushSendBuffer(void)
 
   FARPROC fpAddress = GetOriginalFunctionAddress(XD_IN_FLUSH_SEND_BUFFER_HOOK);
 
-  //LogDebug("XD_InFlushSendBuffer - Starting.");
+  LogDebug("XD_InFlushSendBuffer - Starting.");
 
   if (fpAddress) {
     nResult = ((INT (*)(void))fpAddress)();
   }
 
-  //LogDebug("XD_InFlushSendBuffer - Return(%d).", nResult);
+  LogDebug("XD_InFlushSendBuffer - Return(%d).", nResult);
 
   return nResult;
 }
