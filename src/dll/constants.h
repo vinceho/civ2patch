@@ -18,8 +18,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-#define FILE_VERSION        1,00,00,00
-#define PRODUCT_VERSION     "1.00"
+#define FILE_VERSION        1,00,01,00
+#define PRODUCT_VERSION     "1.01"
 #define PRODUCT             "Civ 2 MGE Patch"
 #define DESCRIPTION         "Civilization 2 Multiplayer Gold Edition Patch"
 #define MODULE_NAME         "civ2patch.dll"
