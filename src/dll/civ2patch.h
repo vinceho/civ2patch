@@ -65,12 +65,13 @@ typedef void (*ConnectionLostCallback)(WORD);
 typedef void (*OversizedMessageCallback)(DWORD dwSize);
 
 /**
- * @param wDestId The Id of the destination instance.
+ * @param wSenderId The Id of the sender instance. If the original message was
+ *   sent using a 255 destination Id, then the sender Id is always the server.
  * @param lpvMessage The received message.
  * @param dwSize The size of the message.
  * @param sArg [Unknown]
  */
-typedef void (*SecureReceiveCallback)(WORD wDestId, LPVOID lpvMessage, DWORD dwSize, SHORT sArg);
+typedef void (*SecureReceiveCallback)(WORD wSenderId, LPVOID lpvMessage, DWORD dwSize, SHORT sArg);
 
 BOOL CIV2PATCH_API WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved);
 BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);

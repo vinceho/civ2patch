@@ -15,91 +15,67 @@
  * You should have received a copy of the GNU General Public License
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <SDL2/SDL_net.h>
 #include <stdio.h>
 #include "net.h"
-#include "hook.h"
-#include "log.h"
+#include "netconfig.h"
+#include "config.h"
 #include "sdllibrary.h"
+#include "log.h"
 
-CHAR g_szNetHostAddress[NET_ADDRESS_CHAR_MAX] = "";
-
-NetConfig g_netConfig = {
-  // Callbacks.
-  NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-  // Configuration.
-  4096
-};
-
-NetServer g_netServer = { NULL, NULL, 0 };
-NetClient g_netClient = { NULL, 0 };
-NetConnection g_netConn = { { 0, 0 }, NULL, { 0, 0 }, NULL, NULL, FALSE, 0, 0 };
-
-INT CIV2PATCH_API Net_ActivateServer(void)
+NetInstance *CreateNetInstance(BOOL bServer, UINT unMaxConnection)
 {
-  LogTrace("Net_ActivateServer");
+  NetInstance *instance = (NetInstance *)malloc(sizeof(NetInstance));
 
-  if (!g_netConn.bServer) {
-    LogError("Not configured to run as a server.");
+  memset(instance, 0, sizeof(NetInstance));
 
-    return -1;
-  }
+  instance->dwConnectionPort = GetNetConnectionPort();
+  instance->dwBroadcastPort = GetNetBroadcastPort();
+  instance->dwConnectionTimeout = GetNetConnectionTimeout();
+  instance->bServer = bServer;
+  instance->unMaxConnection = unMaxConnection;
 
-  // On a server, use the TCP socket to listen for client connections.
-  if (_SDLNet_ResolveHost(&g_netConn.directIP, NULL, g_netConn.nDirectPort) == -1) {
-    LogError("Failed to resolve host for client listener: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (!(g_netConn.directSocket = _SDLNet_TCP_Open(&g_netConn.directIP))) {
-    LogError("Failed to open client listener socket: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (_SDLNet_AddSocket(g_netConn.socketSet, (SDLNet_GenericSocket)g_netConn.directSocket) == -1) {
-    LogError("Failed to add client listener socket: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  g_netServer.unNumClient = 0;
-  g_netServer.clientSockets = (TCPsocket *)malloc(g_netConn.unMaxConnection * sizeof(TCPsocket));
-  g_netServer.buffers = (NetMessageBuffer **)malloc(g_netConn.unMaxConnection * sizeof(NetMessageBuffer *));
-
-  memset(g_netServer.clientSockets, 0, g_netConn.unMaxConnection * sizeof(TCPsocket));
-  memset(g_netServer.buffers, 0, g_netConn.unMaxConnection * sizeof(BYTE *));
-
-  return 0;
+  return instance;
 }
 
-/**
- * Close connection to the server.
- */
-INT CIV2PATCH_API Net_CloseConnection(void)
+BOOL InitializeNetInstance(NetInstance *instance)
 {
-  LogTrace("Net_CloseConnection");
-}
-
-/**
- * @param dwTimeout The timeout in milliseconds.
- *
- * @return The number of items left to flush before the timing out.
- */
-INT CIV2PATCH_API Net_FlushSendBuffer(DWORD dwTimeout)
-{
-  LogTrace("Net_FlushSendBuffer(%u)", dwTimeout);
-
-  return 0;
-}
-
-LPCSTR CIV2PATCH_API Net_GetCurrentProtoAddr(UINT, INT)
-{
-  if (strlen(g_szNetHostAddress) > 0) {
-    return g_szNetHostAddress;
+  if (!instance) {
+    return FALSE;
   }
 
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  INT nMinSocket = instance->bServer ? 2 : 1;
+  INT nMaxSocket = instance->unMaxConnection + nMinSocket;
+
+  if (!(instance->socketSet = _SDLNet_AllocSocketSet(nMaxSocket))) {
+    LogError("Failed to initialize socket set: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  // Initialize broadcast socket.
+  if (_SDLNet_ResolveHost(&instance->broadcastIP, NET_BROADCAST_IP, instance->dwBroadcastPort) == -1) {
+    LogError("Failed to resolve host for broadcast: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  if (!(instance->broadcastSocket = _SDLNet_UDP_Open(instance->dwBroadcastPort))) {
+    LogError("Failed to open broadcast socket: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  if (_SDLNet_AddSocket(instance->socketSet, (SDLNet_GenericSocket)instance->broadcastSocket) == -1) {
+    LogError("Failed to add broadcast socket: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  // Initialize local IP address.
   IPaddress address;
   LPCSTR lpcsHost = NULL;
 
@@ -108,544 +84,649 @@ LPCSTR CIV2PATCH_API Net_GetCurrentProtoAddr(UINT, INT)
   if (!(lpcsHost = _SDLNet_ResolveIP(&address))) {
     LogError("Failed to resolve host name: %s", _SDLNet_GetError());
 
-    return NULL;
+    return FALSE;
   }
 
   if (_SDLNet_ResolveHost(&address, lpcsHost, 0) == -1) {
     LogError("Failed to resolve host address: %s", _SDLNet_GetError());
 
+    return FALSE;
+  }
+
+  LPBYTE dotQuad = (LPBYTE)&address.host;
+
+  snprintf(instance->szIp, NET_ADDRESS_CHAR_MAX, "%u.%u.%u.%u", dotQuad[0], dotQuad[1], dotQuad[2], dotQuad[3]);
+
+  // Initialize connection slots.
+  instance->connections = (NetConnection *)malloc(sizeof(NetConnection) * instance->unMaxConnection);
+  memset(instance->connections, 0, sizeof(NetConnection) * instance->unMaxConnection);
+
+  return TRUE;
+}
+
+LPCSTR GetNetInstanceIp(NetInstance *instance)
+{
+  if (!instance) {
     return NULL;
   }
 
-  BYTE *dotQuad = (BYTE *)&address.host;
-
-  snprintf(g_szNetHostAddress, NET_ADDRESS_CHAR_MAX, "%u.%u.%u.%u", dotQuad[0], dotQuad[1], dotQuad[2], dotQuad[3]);
-
-  return g_szNetHostAddress;
+  return instance->szIp;
 }
 
-INT CIV2PATCH_API Net_InFlushSendBuffer(void)
+INT GetNetInstanceFreeConnectionIndex(NetInstance *instance)
 {
-  if (g_netConn.socketSet) {
-    INT nNumReadySocket = _SDLNet_CheckSockets(g_netConn.socketSet, 0);
+  if (!instance) {
+    return -1;
+  }
 
-    if (nNumReadySocket > 0) {
-      // Listen to broadcast messages.
-      if (g_netConn.boardcastSocket && SDLNet_SocketReady(g_netConn.boardcastSocket)) {
-        UDPpacket *packet = _SDLNet_AllocPacket(g_netConfig.dwMessageMaxSize);
+  if (!instance->connections) {
+    return -1;
+  }
 
-        if (packet) {
-          INT nReceiveResult = _SDLNet_UDP_Recv(g_netConn.boardcastSocket, packet);
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    NetConnection *con = &instance->connections[i];
 
-          if (nReceiveResult == 1) {
-            LogTrace("BroadcastReceiveCallback(%d, %d)", packet->len, 0);
-
-            g_netConfig.fpBroadcastReceiveCallback(packet->data, packet->len, 0);
-          } else if (nReceiveResult == -1) {
-            LogError("Failed to receive broadcast: %s", _SDLNet_GetError());
-          }
-
-          _SDLNet_FreePacket(packet);
-        } else {
-          LogError("Failed to allocate packet: %s", _SDLNet_GetError());
-        }
-      }
-
-      if (g_netConn.bServer) {
-        // Listen to client connections.
-        if (SDLNet_SocketReady(g_netConn.directSocket)) {
-          if (g_netServer.unNumClient < g_netConn.unMaxConnection) {
-            // Find free socket and accept the connection.
-            for (UINT i = 0; i < g_netConn.unMaxConnection; i++) {
-              if (!g_netServer.clientSockets[i]) {
-                TCPsocket socket = _SDLNet_TCP_Accept(g_netConn.directSocket);
-
-                if (socket) {
-                  if (_SDLNet_AddSocket(g_netConn.socketSet, (SDLNet_GenericSocket)socket) == -1) {
-                    LogError("Failed to add client connection socket: %s", _SDLNet_GetError());
-                  } else {
-                    UINT unClientId = i + 1;
-
-                    g_netServer.clientSockets[i] = socket;
-                    g_netServer.buffers[i] = CreateNetMessageBuffer(g_netConfig.dwMessageMaxSize);
-                    g_netServer.unNumClient++;
-
-                    SendNetMessageBuffer((BYTE *)&unClientId, sizeof(unClientId), unClientId, socket);
-
-                    if (g_netConfig.fpNewClientConnectionCallback) {
-                      LogDebug("NewClientConnectionCallback %d, %d", g_netServer.unNumClient + 1, unClientId);
-
-                      g_netConfig.fpNewClientConnectionCallback(g_netServer.unNumClient + 1, unClientId);
-                    }
-                  }
-                } else {
-                  LogError("Failed to accept client connection: %s", _SDLNet_GetError());
-                }
-
-                break;
-              }
-            }
-          }
-        }
-
-        // Listen to client messages.
-        for (DWORD i = 0; i < g_netConn.unMaxConnection; i++) {
-          if (g_netServer.clientSockets[i]) {
-            TCPsocket socket = g_netServer.clientSockets[i];
-            UINT unClientId = i + 1;
-
-            if (SDLNet_SocketReady(socket)) {
-              NetMessageBuffer *buffer = g_netServer.buffers[i];
-              BOOL bReceiveResult = LoadNetMessageBuffer(buffer, socket);
-
-              if (bReceiveResult) {
-                if (IsNetMessageBufferFull(buffer) && g_netConfig.fpSecureReceiveCallback) {
-                  LogTrace("SecureReceiveCallback(%d, %d)", GetNetMessageBufferDestId(buffer), GetNetMessageBufferSize(buffer));
-
-                  g_netConfig.fpSecureReceiveCallback(unClientId, buffer->lpData, GetNetMessageBufferSize(buffer), 0);
-                }
-              } else {
-                // Client disconnected.
-                _SDLNet_DelSocket(g_netConn.socketSet, (SDLNet_GenericSocket)socket);
-                _SDLNet_TCP_Close(socket);
-                FreeNetMessageBuffer(buffer);
-
-                g_netServer.clientSockets[i] = NULL;
-                g_netServer.buffers[i] = NULL;
-                g_netServer.unNumClient--;
-
-                if (g_netConfig.fpConnectionLostCallback) {
-                  LogDebug("ConnectionLostCallback %d", unClientId);
-
-                  g_netConfig.fpConnectionLostCallback(unClientId);
-                }
-              }
-            }
-          }
-        }
-      } else {
-        // Client-side listener.
-        if (SDLNet_SocketReady(g_netConn.directSocket)) {
-          TCPsocket socket = g_netConn.directSocket;
-          NetMessageBuffer *buffer = g_netClient.buffer;
-
-          if (buffer) {
-            BOOL bReceiveResult = LoadNetMessageBuffer(buffer, socket);
-
-            if (bReceiveResult) {
-              if (g_netClient.unClientId) {
-                if (IsNetMessageBufferFull(buffer) && g_netConfig.fpSecureReceiveCallback) {
-                  LogTrace("SecureReceiveCallback(%d, %d)", GetNetMessageBufferDestId(buffer), GetNetMessageBufferSize(buffer));
-
-                  g_netConfig.fpSecureReceiveCallback(GetNetMessageBufferDestId(buffer), buffer->lpData, GetNetMessageBufferSize(buffer), 0);
-                }
-              } else if (IsNetMessageBufferFull(buffer)){
-                DWORD dwMessageSize = GetNetMessageBufferSize(buffer);
-
-                // Connected to the server.
-                if (dwMessageSize == sizeof(g_netClient.unClientId)) {
-                  memcpy(&g_netClient.unClientId, buffer->lpData, dwMessageSize);
-
-                  if (g_netConfig.fpClientConnectionToServerCallback) {
-                    LogDebug("ClientConnectionToServerCallback %d", g_netClient.unClientId);
-
-                    g_netConfig.fpClientConnectionToServerCallback(g_netClient.unClientId);
-                  }
-                } else {
-                  LogError("Failed to receive connection message.");
-                }
-              }
-            } else {
-              // Disconnect
-              LogError("Failed to receive message: %s", _SDLNet_GetError());
-
-              if (g_netConfig.fpConnectionLostCallback) {
-                LogDebug("ConnectionLostCallback %d", 0);
-
-                g_netConfig.fpConnectionLostCallback(0);
-              }
-
-              return -1;
-            }
-          } else {
-            LogError("Failed to receive message due to uninitialized buffer.");
-          }
-        }
-      }
+    if (!con->socket) {
+      return i;
     }
   }
 
-  return 0;
-}
-
-INT CIV2PATCH_API Net_InitializeModem(INT)
-{
-  LogDebug("Net_SetSecureReceive not implemented.");
-
   return -1;
 }
 
-INT CIV2PATCH_API Net_InitializeSerial(INT)
+BOOL ActivateNetInstanceServer(NetInstance *instance)
 {
-  LogDebug("Net_InitializeSerial not implemented.");
-
-  return -1;
-}
-
-INT CIV2PATCH_API Net_InitializeSocketsIPXSPX(INT nModeFlags, INT nDirectPort, INT nBroadcastPort, INT nServer, UINT unMaxConnection, InitializeSocketsCallback callback)
-{
-  LogDebug("Net_InitializeSocketsIPXSPX not implemented.");
-
-  return -1;
-}
-
-/**
- * Initialize the TCP sockets.
- *
- * @param nModeFlags Whether to enable direct connection or broadcast.
- * @param nDirectPort The port to listen and send data via direct connection.
- * @param nBroadcastPort The port to listen and send data via broadcast.
- * @param nServer If non-zero, then this instance will act as a server.
- * @param unMaxConnection The maximum number of connections including itself.
- * @param callback Not used.
- */
-INT CIV2PATCH_API Net_InitializeSocketsTCP(INT nModeFlags, INT nDirectPort, INT nBroadcastPort, INT nServer, UINT unMaxConnection, InitializeSocketsCallback callback)
-{
-  if (callback) {
-    LogDebug("Net_InitializeSocketsTCP callback is not implemented.");
+  if (!instance) {
+    return FALSE;
   }
-
-  if (!unMaxConnection) {
-    LogError("Failed to initialize TCP sockets: Must allow one or more connections.");
-
-    return -1;
-  }
-
-  g_netConn.bServer = (nServer > 0);
-  g_netConn.nDirectPort = nDirectPort;
-  g_netConn.unMaxConnection = unMaxConnection;
-
-  // Sockets for direct, broadcast, and client connections.
-  INT nMaxSocket = g_netConn.bServer ? (2 + unMaxConnection) : 2;
-
-  if (!(g_netConn.socketSet = _SDLNet_AllocSocketSet(nMaxSocket))) {
-    LogError("Failed to initialize socket set: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (_SDLNet_ResolveHost(&g_netConn.broadcastIP, NET_BROADCAST_IP, nBroadcastPort) == -1) {
-    LogError("Failed to resolve host for broadcast: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (!(g_netConn.boardcastSocket = _SDLNet_UDP_Open(nBroadcastPort))) {
-    LogError("Failed to open broadcast socket: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (_SDLNet_AddSocket(g_netConn.socketSet, (SDLNet_GenericSocket)g_netConn.boardcastSocket) == -1) {
-    LogError("Failed to add broadcast socket: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  return 0;
-}
-
-INT CIV2PATCH_API Net_LaunchedByLobby(LPVOID, struct LobbyLaunchInfo *)
-{
-  return -3;
-}
-
-INT CIV2PATCH_API Net_LobbySendMessage(DWORD)
-{
-  LogDebug("Net_LobbySendMessage not implemented.");
-
-  return -1;
-}
-
-INT CIV2PATCH_API Net_OpenConnection(LPCSTR lpcsServer, DWORD dwTimeout)
-{
-  LogTrace("Net_OpenConnection(%s, %d)", lpcsServer, dwTimeout);
-
-  if (g_netConn.bServer) {
-    LogError("Not configured to run as a client.");
-
-    return -1;
-  }
-
-  // On a client, use the TCP socket to connect to the server.
-  if (_SDLNet_ResolveHost(&g_netConn.directIP, lpcsServer, g_netConn.nDirectPort) == -1) {
-    LogError("Failed to resolve host for server connection: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (!(g_netConn.directSocket = _SDLNet_TCP_Open(&g_netConn.directIP))) {
-    LogError("Failed to open server connection socket: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  if (_SDLNet_AddSocket(g_netConn.socketSet, (SDLNet_GenericSocket)g_netConn.directSocket) == -1) {
-    LogError("Failed to add server connection socket: %s", _SDLNet_GetError());
-
-    return -1;
-  }
-
-  g_netClient.buffer = CreateNetMessageBuffer(g_netConfig.dwMessageMaxSize);
-
-  return 0;
-}
-
-/**
- * Shutdown and reinitialize all multiplayer resources.
- *
- * @return Non-zero if failure.
- */
-INT CIV2PATCH_API Net_ResetLibrary(void)
-{
-  LogTrace("Net_ResetLibrary");
 
   if (!IsSdlNetLibraryInitialized()) {
-    if (InitializeSdlLibrary() && InitializeSdlNetLibrary()) {
-      if (_SDL_Init(0) || _SDLNet_Init()) {
-        LogError("Failed to initialize SDL Net: %s", _SDL_GetError());
-
-        return -1;
-      }
-    } else {
-      return -1;
-    }
+    return FALSE;
   }
 
-  Net_ShutdownSockets();
+  if (!instance->bServer) {
+    LogError("Not configured to run as a server.");
 
-  return 0;
+    return FALSE;
+  }
+
+  IPaddress address;
+
+  if (_SDLNet_ResolveHost(&address, NULL, instance->dwConnectionPort) == -1) {
+    LogError("Failed to resolve host for connection listener: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  if (!(instance->listenSocket = _SDLNet_TCP_Open(&address))) {
+    LogError("Failed to open connection listener socket: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  if (_SDLNet_AddSocket(instance->socketSet, (SDLNet_GenericSocket)instance->listenSocket) == -1) {
+    LogError("Failed to add connection listener socket: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
-/**
- * @return The number of bytes sent.
- */
-INT CIV2PATCH_API Net_SendBroadcastData(LPVOID lpvMessage, DWORD dwSize, LONG lArg)
+UINT GetNetInstanceNumConnection(NetInstance *instance)
 {
-  LogTrace("Net_SendBroadcastData(%d, %d)", dwSize, lArg);
-
-  if (dwSize >= g_netConfig.dwMessageMaxSize) {
-    if (g_netConfig.fpOversizedMessageCallback) {
-      g_netConfig.fpOversizedMessageCallback(dwSize);
-    }
-
-    return -1;
+  if (!instance) {
+    return 0;
   }
 
-  INT nResult = -1;
-
-  if (g_netConn.boardcastSocket) {
-    UDPpacket* packet = _SDLNet_AllocPacket(dwSize);
-
-    if (!packet) {
-      LogError("Failed to allocate broadcast packet: %s", _SDLNet_GetError());
-
-      return -1;
-    }
-
-    packet->address = g_netConn.broadcastIP;
-    packet->len = dwSize;
-    memcpy(packet->data, lpvMessage, dwSize);
-
-    if (!_SDLNet_UDP_Send(g_netConn.boardcastSocket, -1, packet)) {
-      LogError("Failed to send broadcast: %s", _SDLNet_GetError());
-    } else {
-      nResult = dwSize;
-    }
-
-    _SDLNet_FreePacket(packet);
+  if (!instance->connections) {
+    return 0;
   }
 
-  return nResult;
+  UINT unNumConnection = 0;
+
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    NetConnection *con = &instance->connections[i];
+
+    if (con->socket) {
+      unNumConnection++;
+    }
+  }
+
+  return unNumConnection;
 }
 
-/**
- * @param wDestId The server/client Id to send message to. If set to 255, send
- *   the message to all.
- * @param lpvMessage The message to send.
- * @param dwSize The size of the message.
- * @param sArg [Unknown]
- */
-INT CIV2PATCH_API Net_SendSecureData(WORD wDestId, LPVOID lpvMessage, DWORD dwSize, SHORT sArg)
+BOOL CloseNetInstanceConnection(NetInstance *instance, UINT unConnectionIndex)
 {
-  LogTrace("Net_SendSecureData(%u, %u, %d)", wDestId, dwSize, sArg);
+  if (!instance) {
+    return FALSE;
+  }
 
-  if (dwSize >= g_netConfig.dwMessageMaxSize) {
-    if (g_netConfig.fpOversizedMessageCallback) {
-      g_netConfig.fpOversizedMessageCallback(dwSize);
+  if (!instance->connections || unConnectionIndex >= instance->unMaxConnection) {
+    return FALSE;
+  }
+
+  NetConnection *con = &instance->connections[unConnectionIndex];
+
+  if (IsSdlNetLibraryInitialized() && con->socket) {
+    if (instance->socketSet) {
+      _SDLNet_DelSocket(instance->socketSet, (SDLNet_GenericSocket)con->socket);
     }
 
-    return -1;
+    _SDLNet_TCP_Close(con->socket);
   }
 
-  if (!g_netConn.bServer && wDestId == 255) {
-    wDestId = 0;
+  if (con->receiveQueue) {
+    FreeNetMessage(con->receiveQueue);
   }
 
-  if (wDestId == 0) {
-    if (!g_netConn.bServer) {
-      TCPsocket socket = g_netConn.directSocket;
+  if (con->sendQueue) {
+    FreeNetMessage(con->sendQueue);
+  }
 
-      if (g_netClient.unClientId && socket) {
-        BOOL bSendResult = SendNetMessageBuffer((BYTE *)lpvMessage, dwSize, wDestId, socket);
+  memset(con, 0, sizeof(NetConnection));
 
-        if (!bSendResult) {
-          LogError("Failed to send message from client: %s", _SDLNet_GetError());
+  return TRUE;
+}
+
+BOOL CloseNetInstanceConnections(NetInstance *instance)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  BOOL bResult = TRUE;
+
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    bResult &= CloseNetInstanceConnection(instance, i);
+  }
+
+  return bResult;
+}
+
+BOOL OpenNetInstanceConnection(NetInstance *instance, LPCSTR lpcsServer)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  // Minimum length of an IPv4 address is 7 (e.g. 1.1.1.1).
+  if (!lpcsServer || strlen(lpcsServer) < NET_ADDRESS_CHAR_MIN) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  INT nConnectionIndex = GetNetInstanceFreeConnectionIndex(instance);
+
+  if (nConnectionIndex < 0) {
+    LogError("Failed to open connection due to no free socket.");
+
+    return FALSE;
+  }
+
+  IPaddress address;
+  NetConnection *con = &instance->connections[nConnectionIndex];
+
+  if (_SDLNet_ResolveHost(&address, lpcsServer, instance->dwConnectionPort) == -1) {
+    LogError("Failed to resolve host for connection to the server: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  if (!(con->socket = _SDLNet_TCP_Open(&address))) {
+    LogError("Failed to open connection socket to the server: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  if (_SDLNet_AddSocket(instance->socketSet, (SDLNet_GenericSocket)con->socket) == -1) {
+    LogError("Failed to add server connection socket: %s", _SDLNet_GetError());
+
+    CloseNetInstanceConnection(instance, nConnectionIndex);
+
+    return FALSE;
+  }
+
+  con->bToServer = TRUE;
+  con->receiveQueue = CreateNetMessage(GetNetMessageMaxSize(), instance->dwConnectionTimeout);
+
+  return TRUE;
+}
+
+BOOL ReceiveNetInstanceBroadcast(NetInstance *instance)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  BOOL bResult = FALSE;
+
+  // Listen to broadcast messages.
+  if (instance->broadcastSocket && SDLNet_SocketReady(instance->broadcastSocket)) {
+    UDPpacket *packet = _SDLNet_AllocPacket(GetNetMessageMaxSize());
+
+    if (packet) {
+      INT nReceiveResult = _SDLNet_UDP_Recv(instance->broadcastSocket, packet);
+      BroadcastReceiveCallback fpCallback = GetNetBroadcastReceiveCallback();
+
+      if (nReceiveResult == 1) {
+        if (fpCallback) {
+          LogTrace("BroadcastReceiveCallback(%d, %d)", packet->len, 0);
+          fpCallback(packet->data, packet->len, 0);
         }
 
-        return dwSize;
+        bResult = TRUE;
+      } else if (nReceiveResult == -1) {
+        LogError("Failed to receive broadcast: %s", _SDLNet_GetError());
+      }
+
+      _SDLNet_FreePacket(packet);
+    } else {
+      LogError("Failed to allocate packet: %s", _SDLNet_GetError());
+    }
+  }
+
+  return bResult;
+}
+
+BOOL AcceptNetInstanceConnection(NetInstance *instance)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  if (instance->listenSocket && SDLNet_SocketReady(instance->listenSocket)) {
+    // Listen to client connections.
+    INT nConnectionIndex = GetNetInstanceFreeConnectionIndex(instance);
+
+    if (nConnectionIndex >= 0) {
+      // Find free socket and accept the connection.
+      NetConnection *con = &instance->connections[nConnectionIndex];
+      TCPsocket socket = _SDLNet_TCP_Accept(instance->listenSocket);
+
+      if (socket) {
+        if (_SDLNet_AddSocket(instance->socketSet, (SDLNet_GenericSocket)socket) == -1) {
+          LogError("Failed to add client connection socket: %s", _SDLNet_GetError());
+          _SDLNet_TCP_Close(socket);
+        } else {
+          // Send client the assigned Id.
+          UINT unClientId = nConnectionIndex + 1;
+
+          con->socket = socket;
+          con->unId = unClientId;
+          con->receiveQueue = CreateNetMessage(GetNetMessageMaxSize(), instance->dwConnectionTimeout);
+
+          // Add 1 to include the listener connection.
+          UINT unNumConnection = GetNetInstanceNumConnection(instance) + 1;
+          NetMessageBuffer *buffer = CreateNetMessageBuffer((LPBYTE)&unClientId, sizeof(unClientId), unClientId, 0);
+          NewClientConnectionCallback fpCallback = GetNetNewClientConnectionCallback();
+
+          AddNetMessage(&con->sendQueue, buffer, instance->dwConnectionTimeout);
+
+          if (fpCallback) {
+            LogTrace("NewClientConnectionCallback(%d, %d)", unNumConnection, unClientId);
+            fpCallback(unNumConnection, unClientId);
+          }
+
+          return TRUE;
+        }
       } else {
-        LogError("Client cannot send message due to no connection to the server.");
+        LogError("Failed to accept client connection: %s", _SDLNet_GetError());
       }
     } else {
-      LogError("Server cannot send message to itself.");
+      LogError("Failed to accept connection due to no free socket.");
     }
-  } else {
-    if (g_netConn.bServer) {
-      for (UINT i = 0; i < g_netConn.unMaxConnection; i++) {
-        UINT unClientId = i + 1;
 
-        if (unClientId == wDestId || wDestId == 255) {
-          TCPsocket socket = g_netServer.clientSockets[i];
+    return FALSE;
+  }
 
-          if (socket) {
-            BOOL bSendResult = SendNetMessageBuffer((BYTE *)lpvMessage, dwSize, unClientId, socket);
+  return TRUE;
+}
 
-            if (!bSendResult) {
-              LogError("Failed to send message from server to client %d: %s", unClientId, _SDLNet_GetError());
+BOOL ReceiveNetInstanceData(NetInstance *instance)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  if (!instance->connections) {
+    return FALSE;
+  }
+
+  // Listen to client messages.
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    NetConnection *con = &instance->connections[i];
+
+    if (con->socket && SDLNet_SocketReady(con->socket)) {
+      INT nReceiveResult = ReceiveNetMessage(con->receiveQueue, con->socket);
+      NetMessageBuffer *buffer = PeekNetMessageMessageBuffer(con->receiveQueue);
+
+      if (!nReceiveResult) {
+        if (IsNetMessageBufferFull(buffer)) {
+          SecureReceiveCallback fpCallback = GetNetSecureReceiveCallback();
+          INT nDestinationId = GetNetMessageBufferDestinationId(buffer);
+          INT nSourceId = GetNetMessageBufferSourceId(buffer);
+          DWORD dwMessageSize = GetNetMessageBufferSize(buffer);
+          LPBYTE data = GetNetMessageBufferData(buffer);
+
+          if (instance->bServer) {
+            // Server needs to forward requests to other clients if its not
+            // the final recipient.
+            if (nDestinationId > 0) {
+              UINT unRealSourceId = (nDestinationId == NET_BROADCAST_ID) ? 0 : nSourceId;
+
+              for (UINT j = 0; j < instance->unMaxConnection; j++) {
+                NetConnection *forwardCon = &instance->connections[j];
+
+                if (forwardCon->socket
+                    && !forwardCon->bToServer
+                    && nSourceId != forwardCon->unId
+                    && (nDestinationId == forwardCon->unId || nDestinationId == NET_BROADCAST_ID)) {
+                  NetMessageBuffer *newBuffer = CreateNetMessageBuffer(data, dwMessageSize, forwardCon->unId, unRealSourceId);
+
+                  AddNetMessage(&forwardCon->sendQueue, newBuffer, instance->dwConnectionTimeout);
+                }
+              }
             }
 
-            if (wDestId != 255) {
-              return dwSize;
+            // Don't process the message on the server if it's not the real
+            // recipient.
+            if (nDestinationId != NET_BROADCAST_ID && nDestinationId != 0) {
+              continue;
+            }
+          } else {
+            if (con->bToServer && !con->unId) {
+              // Get client Id from server response if not assigned already.
+              ClientConnectionToServerCallback fpCallback = GetNetClientConnectionToServerCallback();
+
+              if (sizeof(con->unId) == dwMessageSize && *(UINT *)data == nDestinationId) {
+                con->unId = nDestinationId;
+
+                if (fpCallback) {
+                  LogTrace("ClientConnectionToServerCallback(%d)", con->unId);
+                  fpCallback(con->unId);
+                }
+              } else {
+                LogError("Failed to connect to server due to incorrect Id assignment response.");
+                CloseNetInstanceConnection(instance, i);
+              }
+
+              continue;
             }
           }
-        }
-      }
 
-      return dwSize;
-    } else {
-      LogError("Client can only send message to the server.");
+          if (fpCallback) {
+            LogTrace("SecureReceiveCallback(%d, %d)", nSourceId, dwMessageSize);
+            fpCallback(nSourceId, data, dwMessageSize, 0);
+          }
+        }
+      } else if (nReceiveResult == -1) {
+        if (!con->bToServer || con->unId) {
+          LogError("Connection to instance %d lost.", con->unId);
+
+          ConnectionLostCallback fpCallback = GetNetConnectionLostCallback();
+
+          if (fpCallback) {
+            LogTrace("ConnectionLostCallback(%d)", con->unId);
+            fpCallback(con->unId);
+          }
+        }
+
+        CloseNetInstanceConnection(instance, i);
+      } else if (nReceiveResult == 1) {
+        // Timed out.
+        ResetNetMessageBuffer(buffer);
+      }
     }
   }
 
-  return -1;
+  return TRUE;
 }
 
-/**
- * Close a client connection.
- */
-INT CIV2PATCH_API Net_ServerCloseConnection(WORD wClientId)
+BOOL BroadcastNetInstanceData(NetInstance *instance, LPVOID lpvMessage, DWORD dwSize)
 {
-  LogTrace("Net_ServerCloseConnection(%u)", wClientId);
-  return -1;
-}
-
-/**
- * Set the callback for receiving a broadcast message.
- *
- * @param callback The callback function.
- */
-void CIV2PATCH_API Net_SetBroadcastReceive(BroadcastReceiveCallback callback)
-{
-  g_netConfig.fpBroadcastReceiveCallback = callback;
-}
-
-/**
- * Set the server callback for accepting a client connection.
- *
- * @param callback The callback function.
- */
-void CIV2PATCH_API Net_SetNewClientConnection(NewClientConnectionCallback callback)
-{
-  g_netConfig.fpNewClientConnectionCallback = callback;
-}
-
-/**
- * Set the client callback for being connected to the server.
- *
- * @param callback The callback function.
- */
-void CIV2PATCH_API Net_SetOnClientConnectionToServer(ClientConnectionToServerCallback callback)
-{
-  g_netConfig.fpClientConnectionToServerCallback = callback;
-}
-
-/**
- * Set the client callback for losing connection to the server.
- *
- * @param callback The callback function.
- */
-void CIV2PATCH_API Net_SetOnConnectionLost(ConnectionLostCallback callback)
-{
-  g_netConfig.fpConnectionLostCallback = callback;
-}
-
-/**
- * Set the callback for sending a message that exceeds the maximum size.
- * The callback can be triggered during  XD_SendSecureData.
- *
- * @param dwMaxSize The maximum size in bytes. The callback will be called if
- *   the message is equal or larger than this size.
- * @param callback The callback function.
- *
- * @return Non-zero if failure.
- */
-INT CIV2PATCH_API Net_SetOversizedMessageCB(DWORD dwMaxSize, OversizedMessageCallback callback)
-{
-  if (!dwMaxSize) {
-    LogError("Maximum message size cannot be 0.");
-    dwMaxSize = 4096;
+  if (!instance) {
+    return FALSE;
   }
 
-  g_netConfig.fpOversizedMessageCallback = callback;
-  g_netConfig.dwMessageMaxSize = dwMaxSize;
-
-  return 0;
-}
-
-/**
- * Set the callback for receiving a message.
- *
- * @param callback The callback function.
- */
-void CIV2PATCH_API Net_SetSecureReceive(SecureReceiveCallback callback)
-{
-  g_netConfig.fpSecureReceiveCallback = callback;
-}
-
-void CIV2PATCH_API Net_ShutdownModem(void)
-{
-  LogTrace("Net_ShutdownModem");
-}
-
-void CIV2PATCH_API Net_ShutdownSockets(void)
-{
-  LogTrace("Net_ShutdownSockets");
-
-  // Clean up resources.
-  if (g_netConn.boardcastSocket) {
-    _SDLNet_UDP_Close(g_netConn.boardcastSocket);
-    g_netConn.boardcastSocket = NULL;
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
   }
+
+  if (dwSize >= GetNetMessageMaxSize()) {
+    OversizedMessageCallback fpCallback = GetNetOversizedMessageCallback();
+
+    if (fpCallback) {
+      fpCallback(dwSize);
+    }
+
+    return FALSE;
+  }
+
+  if (!instance->broadcastSocket) {
+    return FALSE;
+  }
+
+  BOOL bResult = TRUE;
+  UDPpacket *packet = _SDLNet_AllocPacket(dwSize);
+
+  if (!packet) {
+    LogError("Failed to allocate broadcast packet: %s", _SDLNet_GetError());
+
+    return FALSE;
+  }
+
+  packet->address = instance->broadcastIP;
+  packet->len = dwSize;
+  memcpy(packet->data, lpvMessage, dwSize);
+
+  if (!_SDLNet_UDP_Send(instance->broadcastSocket, -1, packet)) {
+    LogError("Failed to send broadcast: %s", _SDLNet_GetError());
+    bResult = FALSE;
+  }
+
+  _SDLNet_FreePacket(packet);
+
+  return bResult;
 }
 
-void CIV2PATCH_API Net_ShutdownTEN(void)
+BOOL QueueNetInstanceData(NetInstance *instance, UINT unDestId, LPBYTE data, DWORD dwSize)
 {
-  LogTrace("Net_ShutdownTEN");
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  if (dwSize >= GetNetMessageMaxSize()) {
+    OversizedMessageCallback fpCallback = GetNetOversizedMessageCallback();
+
+    if (fpCallback) {
+      fpCallback(dwSize);
+    }
+
+    return FALSE;
+  }
+
+  if (!instance->connections) {
+    return FALSE;
+  }
+
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    NetConnection *con = &instance->connections[i];
+
+    if (con->socket) {
+      UINT unSrcId = con->bToServer ? con->unId : 0;
+      UINT unTargetId = con->bToServer ? 0 : con->unId;
+
+      if (!instance->bServer && con->bToServer) {
+        // If instance is not the server, sent the message to the server to be
+        // forwarded to be final destination.
+        unTargetId = unDestId;
+      } else if (unDestId != unTargetId && unDestId != NET_BROADCAST_ID) {
+        continue;
+      }
+
+      NetMessageBuffer *buffer = CreateNetMessageBuffer(data, dwSize, unTargetId, unSrcId);
+
+      AddNetMessage(&con->sendQueue, buffer, instance->dwConnectionTimeout);
+    }
+  }
+
+  return TRUE;
 }
 
-INT CIV2PATCH_API Net_StopConnections(void)
+BOOL HasNetInstanceData(NetInstance *instance)
 {
-  LogDebug("Net_StopConnections");
-  return -1;
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  if (!instance->connections) {
+    return FALSE;
+  }
+
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    NetConnection *con = &instance->connections[i];
+
+    if (con->socket && con->sendQueue) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+BOOL SendNetInstanceData(NetInstance *instance)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  if (!instance->connections) {
+    return FALSE;
+  }
+
+  for (UINT i = 0; i < instance->unMaxConnection; i++) {
+    NetConnection *con = &instance->connections[i];
+
+    if (con->socket) {
+      NetMessage *message = con->sendQueue;
+
+      if (message) {
+        if (!IsNetMessageBufferFull(PeekNetMessageMessageBuffer(message))) {
+          LogError("Failed to send incomplete message.");
+          FreeNetMessage(PopNetMessage(&con->sendQueue));
+
+          continue;
+        }
+
+        INT nSendResult = SendNetMessage(message, con->socket);
+
+        if (!nSendResult) {
+          FreeNetMessage(PopNetMessage(&con->sendQueue));
+        } else if (nSendResult == -1) {
+          if (!con->bToServer || con->unId) {
+            LogError("Connection to instance %d lost.", con->unId);
+
+            ConnectionLostCallback fpCallback = GetNetConnectionLostCallback();
+
+            if (fpCallback) {
+              LogTrace("ConnectionLostCallback(%d)", con->unId);
+              fpCallback(con->unId);
+            }
+          }
+
+          CloseNetInstanceConnection(instance, i);
+        }
+      }
+    }
+  }
+
+  return TRUE;
+}
+
+BOOL ProcessNetInstance(NetInstance *instance)
+{
+  if (!instance) {
+    return FALSE;
+  }
+
+  if (!IsSdlNetLibraryInitialized()) {
+    return FALSE;
+  }
+
+  if (instance->socketSet) {
+    INT nNumReadySocket = _SDLNet_CheckSockets(instance->socketSet, 0);
+
+    if (nNumReadySocket > 0) {
+      ReceiveNetInstanceBroadcast(instance);
+      AcceptNetInstanceConnection(instance);
+      ReceiveNetInstanceData(instance);
+    }
+  }
+
+  SendNetInstanceData(instance);
+
+  return TRUE;
+}
+
+void FreeNetInstance(NetInstance *instance)
+{
+  if (instance) {
+    CloseNetInstanceConnections(instance);
+
+    if (instance->connections) {
+      free(instance->connections);
+    }
+
+    if (IsSdlNetLibraryInitialized()) {
+      if (instance->broadcastSocket) {
+        if (instance->socketSet) {
+          _SDLNet_DelSocket(instance->socketSet, (SDLNet_GenericSocket)instance->broadcastSocket);
+        }
+
+        _SDLNet_UDP_Close(instance->broadcastSocket);
+      }
+
+      if (instance->listenSocket) {
+        if (instance->socketSet) {
+          _SDLNet_DelSocket(instance->socketSet, (SDLNet_GenericSocket)instance->listenSocket);
+        }
+
+        _SDLNet_TCP_Close(instance->listenSocket);
+      }
+
+      if (instance->socketSet) {
+        _SDLNet_FreeSocketSet(instance->socketSet);
+      }
+    }
+
+    free(instance);
+  }
 }

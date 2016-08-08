@@ -24,6 +24,7 @@
 typedef struct {
   DWORD dwSize;
   UINT unDestId;
+  UINT unSrcId;
 } NetMessageBufferHeader;
 
 typedef struct {
@@ -35,11 +36,14 @@ typedef struct {
 } NetMessageBuffer;
 
 NetMessageBuffer *CreateNetMessageBuffer(DWORD dwMaxSize);
-INT GetNetMessageBufferDestId(NetMessageBuffer *buffer);
+NetMessageBuffer *CreateNetMessageBuffer(LPBYTE data, DWORD dwSize, UINT unDestId, UINT unSrcId);
+INT GetNetMessageBufferDestinationId(NetMessageBuffer *buffer);
+INT GetNetMessageBufferSourceId(NetMessageBuffer *buffer);
 DWORD GetNetMessageBufferSize(NetMessageBuffer *buffer);
+LPBYTE GetNetMessageBufferData(NetMessageBuffer *buffer);
 BOOL IsNetMessageBufferFull(NetMessageBuffer *buffer);
 void ResetNetMessageBuffer(NetMessageBuffer *buffer);
-BOOL SendNetMessageBuffer(BYTE *buffer, DWORD dwSize, UINT wDestId, TCPsocket socket);
+BOOL SendNetMessageBuffer(NetMessageBuffer *buffer, TCPsocket socket);
 BOOL LoadNetMessageBuffer(NetMessageBuffer *buffer, TCPsocket socket);
 void FreeNetMessageBuffer(NetMessageBuffer *buffer);
 

@@ -23,18 +23,23 @@
 
 Config g_config = {
   // Options
-  FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE,
+  1, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE,
   // Advanced
   3000, 1, 8, 0.5f, 1000,
   // Limits
   9999, 9979, 32767, 200000, 2000000000,
   // Music
-  22050, 8192, 64, 0
+  22050, 8192, 64, 0,
+  // Multiplayer
+  4993,
+  4994,
+  5000
 };
 
 ConfigLink configLinks[] = {
-  { "Options", "Log", CVT_BOOL, &g_config.bLog },
+  { "Options", "Log", CVT_NUMBER, &g_config.dwLogLevel },
   { "Options", "Music", CVT_BOOL, &g_config.bMusic },
+  { "Options", "Multiplayer", CVT_BOOL, &g_config.bMultiplayer },
   { "Options", "FixCpuUsage", CVT_BOOL, &g_config.bFixCpu },
   { "Options", "Fix64BitCompatibility", CVT_BOOL, &g_config.bFix64BitCompatibility },
   { "Options", "DisableCdCheck", CVT_BOOL, &g_config.bNoCdCheck },
@@ -60,7 +65,11 @@ ConfigLink configLinks[] = {
   { "Music", "Frequency", CVT_NUMBER, &g_config.dwMusicFreq },
   { "Music", "ChunkSize", CVT_NUMBER, &g_config.dwMusicChunkSize },
   { "Music", "Volume", CVT_NUMBER, &g_config.dwMusicVolume },
-  { "Music", "Album", CVT_NUMBER, &g_config.dwMusicAlbum }
+  { "Music", "Album", CVT_NUMBER, &g_config.dwMusicAlbum },
+
+  { "Multiplayer", "ConnectionPort", CVT_NUMBER, &g_config.dwNetConnectionPort },
+  { "Multiplayer", "BroadcastPort", CVT_NUMBER, &g_config.dwNetBroadcastPort },
+  { "Multiplayer", "ConnectionTimeout", CVT_NUMBER, &g_config.dwNetConnectionTimeout }
 };
 
 BOOL HasConfig();
@@ -100,18 +109,20 @@ FLOAT GetMinMaxFloat(FLOAT fValue, FLOAT fMin, FLOAT fMax)
 
 BOOL ValidateConfig()
 {
+  g_config.dwLogLevel = GetMinMax(0, g_config.dwLogLevel, 4);
+
   // Ensure boolean non-zero value is always TRUE.
-  g_config.bLog = (g_config.bLog) ? TRUE : FALSE;
-  g_config.bMusic = (g_config.bMusic) ? TRUE : FALSE;;
-  g_config.bFixCpu = (g_config.bFixCpu) ? TRUE : FALSE;;
-  g_config.bFix64BitCompatibility = (g_config.bFix64BitCompatibility) ? TRUE : FALSE;;
-  g_config.bNoCdCheck = (g_config.bNoCdCheck) ? TRUE : FALSE;;
-  g_config.bFixHostileAi = (g_config.bFixHostileAi) ? TRUE : FALSE;;
-  g_config.bSetRetirementYear = (g_config.bSetRetirementYear) ? TRUE : FALSE;;
-  g_config.bSetCombatAnimationLength = (g_config.bSetCombatAnimationLength) ? TRUE : FALSE;;
-  g_config.bSetPopulationLimit = (g_config.bSetPopulationLimit) ? TRUE : FALSE;;
-  g_config.bSetGoldLimit = (g_config.bSetGoldLimit) ? TRUE : FALSE;;
-  g_config.bSetMapTilesLimit = (g_config.bSetMapTilesLimit) ? TRUE : FALSE;;
+  g_config.bMusic = (g_config.bMusic) ? TRUE : FALSE;
+  g_config.bMultiplayer = (g_config.bMultiplayer) ? TRUE : FALSE;
+  g_config.bFixCpu = (g_config.bFixCpu) ? TRUE : FALSE;
+  g_config.bFix64BitCompatibility = (g_config.bFix64BitCompatibility) ? TRUE : FALSE;
+  g_config.bNoCdCheck = (g_config.bNoCdCheck) ? TRUE : FALSE;
+  g_config.bFixHostileAi = (g_config.bFixHostileAi) ? TRUE : FALSE;
+  g_config.bSetRetirementYear = (g_config.bSetRetirementYear) ? TRUE : FALSE;
+  g_config.bSetCombatAnimationLength = (g_config.bSetCombatAnimationLength) ? TRUE : FALSE;
+  g_config.bSetPopulationLimit = (g_config.bSetPopulationLimit) ? TRUE : FALSE;
+  g_config.bSetGoldLimit = (g_config.bSetGoldLimit) ? TRUE : FALSE;
+  g_config.bSetMapTilesLimit = (g_config.bSetMapTilesLimit) ? TRUE : FALSE;
 
   g_config.dwPurgeMessagesInterval = GetMinMax(1000, g_config.dwPurgeMessagesInterval, 5000);
   g_config.dwMessageWaitTimeout = GetMinMax(1, g_config.dwMessageWaitTimeout, 100);
@@ -129,6 +140,11 @@ BOOL ValidateConfig()
   g_config.dwMusicChunkSize = GetMinMax(4096, g_config.dwMusicChunkSize, 1048576);
   g_config.dwMusicVolume = GetMinMax(0, g_config.dwMusicVolume, MIX_MAX_VOLUME);
   g_config.dwMusicAlbum = GetMinMax(0, g_config.dwMusicAlbum, 3);
+
+  // Multiplayer
+  g_config.dwNetConnectionPort = GetMinMax(1024, g_config.dwNetConnectionPort, 65535);
+  g_config.dwNetBroadcastPort = GetMinMax(1024, g_config.dwNetBroadcastPort, 65535);
+  g_config.dwNetConnectionTimeout = GetMinMax(1000, g_config.dwNetConnectionTimeout, 60000);
 
   return TRUE;
 }
@@ -233,7 +249,12 @@ BOOL WriteConfig()
  */
 BOOL IsLogEnabled()
 {
-  return g_config.bLog;
+  return (g_config.dwLogLevel > 0);
+}
+
+DWORD GetLogLevel()
+{
+  return g_config.dwLogLevel;
 }
 
 BOOL IsMusicEnabled()
@@ -243,7 +264,7 @@ BOOL IsMusicEnabled()
 
 BOOL IsMultiplayerEnabled()
 {
-  return TRUE;
+  return g_config.bMultiplayer;
 }
 
 BOOL IsFixIdleCpuEnabled()
@@ -359,4 +380,19 @@ DWORD GetMusicVolume()
 DWORD GetMusicAlbum()
 {
   return g_config.dwMusicAlbum;
+}
+
+DWORD GetNetConnectionPort()
+{
+  return g_config.dwNetConnectionPort;
+}
+
+DWORD GetNetBroadcastPort()
+{
+  return g_config.dwNetBroadcastPort;
+}
+
+DWORD GetNetConnectionTimeout()
+{
+  return g_config.dwNetConnectionTimeout;
 }

@@ -26,7 +26,26 @@ NetMessageBuffer *CreateNetMessageBuffer(DWORD dwMaxSize)
   memset(buffer, 0, sizeof(NetMessageBuffer));
 
   buffer->dwMaxSize = dwMaxSize;
-  buffer->lpData = (BYTE *)malloc(dwMaxSize);
+  buffer->lpData = (LPBYTE)malloc(dwMaxSize);
+
+  return buffer;
+}
+
+NetMessageBuffer *CreateNetMessageBuffer(LPBYTE data, DWORD dwSize, UINT unDestId, UINT unSrcId)
+{
+  if (!data) {
+    return NULL;
+  }
+
+  NetMessageBuffer *buffer = CreateNetMessageBuffer(dwSize);
+
+  buffer->header.dwSize = dwSize;
+  buffer->header.unDestId = unDestId;
+  buffer->header.unSrcId = unSrcId;
+  buffer->dwHeaderRead = sizeof(NetMessageBufferHeader);
+  buffer->dwDataRead = dwSize;
+
+  memcpy(buffer->lpData, data, dwSize);
 
   return buffer;
 }
@@ -40,10 +59,19 @@ void ResetNetMessageBuffer(NetMessageBuffer *buffer)
   }
 }
 
-INT GetNetMessageBufferDestId(NetMessageBuffer *buffer)
+INT GetNetMessageBufferDestinationId(NetMessageBuffer *buffer)
 {
   if (buffer && buffer->dwHeaderRead == sizeof(NetMessageBufferHeader)) {
     return buffer->header.unDestId;
+  }
+
+  return -1;
+}
+
+INT GetNetMessageBufferSourceId(NetMessageBuffer *buffer)
+{
+  if (buffer && buffer->dwHeaderRead == sizeof(NetMessageBufferHeader)) {
+    return buffer->header.unSrcId;
   }
 
   return -1;
@@ -58,6 +86,15 @@ DWORD GetNetMessageBufferSize(NetMessageBuffer *buffer)
   return 0;
 }
 
+LPBYTE GetNetMessageBufferData(NetMessageBuffer *buffer)
+{
+  if (!buffer) {
+    return NULL;
+  }
+
+  return buffer->lpData;
+}
+
 BOOL IsNetMessageBufferFull(NetMessageBuffer *buffer)
 {
   if (!buffer) {
@@ -69,21 +106,23 @@ BOOL IsNetMessageBufferFull(NetMessageBuffer *buffer)
   return ((dwSize > 0) && dwSize == buffer->dwDataRead);
 }
 
-BOOL SendNetMessageBuffer(BYTE *buffer, DWORD dwSize, UINT wDestId, TCPsocket socket)
+BOOL SendNetMessageBuffer(NetMessageBuffer *buffer, TCPsocket socket)
 {
-  NetMessageBufferHeader header = { dwSize, wDestId };
+  if (!IsNetMessageBufferFull(buffer)) {
+    return FALSE;
+  }
+
   DWORD dwHeaderSize = sizeof(NetMessageBufferHeader);
+  DWORD dwSize = buffer->header.dwSize;
   DWORD dwMessageSize = dwSize + dwHeaderSize;
   BYTE message[dwMessageSize];
 
-  memcpy(message, &header, dwHeaderSize);
-  memcpy(&(message[dwHeaderSize]), buffer, dwSize);
+  memcpy(message, &buffer->header, dwHeaderSize);
+  memcpy(&(message[dwHeaderSize]), buffer->lpData, dwSize);
 
   INT nSendResult = _SDLNet_TCP_Send(socket, message, dwMessageSize);
 
   if (nSendResult != dwMessageSize) {
-    LogError("Failed to send message to %u: %s", wDestId, _SDLNet_GetError());
-
     return FALSE;
   }
 
@@ -104,15 +143,13 @@ BOOL LoadNetMessageBuffer(NetMessageBuffer *buffer, TCPsocket socket)
 
   if (buffer->dwHeaderRead < dwHeaderSize) {
     DWORD dwRemain = dwHeaderSize - buffer->dwHeaderRead;
-    BYTE *headerBuffer = (BYTE *)&buffer->header;
+    LPBYTE headerBuffer = (LPBYTE)&buffer->header;
     INT nReadResult = _SDLNet_TCP_Recv(socket, &headerBuffer[buffer->dwHeaderRead], dwRemain);
 
     if (nReadResult > 0) {
       buffer->dwHeaderRead += nReadResult;
 
       return TRUE;
-    } else if (nReadResult < 0) {
-      LogError("Failed to read message header from TCP socket: %s", _SDLNet_GetError());
     }
   }
 
@@ -122,8 +159,6 @@ BOOL LoadNetMessageBuffer(NetMessageBuffer *buffer, TCPsocket socket)
 
     if (dwSize > 0) {
       if (dwSize > buffer->dwMaxSize) {
-        LogError("Expected message size %d is larger than maximum message size %d.", dwSize, buffer->dwMaxSize);
-
         dwOverflow = dwSize - buffer->dwMaxSize;
       }
 
@@ -145,8 +180,6 @@ BOOL LoadNetMessageBuffer(NetMessageBuffer *buffer, TCPsocket socket)
         buffer->dwDataRead += nReadResult;
 
         return TRUE;
-      } else if (nReadResult < 0) {
-        LogError("Failed to read message data from TCP socket: %s", _SDLNet_GetError());
       }
     }
   }
@@ -159,7 +192,6 @@ void FreeNetMessageBuffer(NetMessageBuffer *buffer)
   if (buffer) {
     if (buffer->lpData) {
       free(buffer->lpData);
-      buffer->lpData = NULL;
     }
 
     free(buffer);

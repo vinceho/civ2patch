@@ -57,7 +57,7 @@ void Log(LPCSTR lpcsFormat, LPCSTR lpcsLevel, va_list args)
 
 void LogInfo(LPCSTR lpcsFormat, ...)
 {
-  if (IsLogEnabled()) {
+  if (GetLogLevel() >= LOG_LEVEL_INFO) {
     va_list args;
     va_start(args, lpcsFormat);
     Log(lpcsFormat, "INFO", args);
@@ -67,7 +67,7 @@ void LogInfo(LPCSTR lpcsFormat, ...)
 
 void LogError(LPCSTR lpcsFormat, ...)
 {
-  if (IsLogEnabled()) {
+  if (GetLogLevel() >= LOG_LEVEL_ERROR) {
     va_list args;
     va_start(args, lpcsFormat);
     Log(lpcsFormat, "ERROR", args);
@@ -77,7 +77,7 @@ void LogError(LPCSTR lpcsFormat, ...)
 
 void LogDebug(LPCSTR lpcsFormat, ...)
 {
-  if (IsLogEnabled()) {
+  if (GetLogLevel() >= LOG_LEVEL_DEBUG) {
     va_list args;
     va_start(args, lpcsFormat);
     Log(lpcsFormat, "DEBUG", args);
@@ -87,7 +87,7 @@ void LogDebug(LPCSTR lpcsFormat, ...)
 
 void LogTrace(LPCSTR lpcsFormat, ...)
 {
-  if (IsLogEnabled()) {
+  if (GetLogLevel() >= LOG_LEVEL_TRACE) {
     va_list args;
     va_start(args, lpcsFormat);
     Log(lpcsFormat, "TRACE", args);

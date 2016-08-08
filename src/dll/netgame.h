@@ -15,23 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef CONSTANTS_H
-#define CONSTANTS_H
+#ifndef NET_GAME_H
+#define NET_GAME_H
 
-#define FILE_VERSION        1,00,00,00
-#define PRODUCT_VERSION     "1.00"
-#define PRODUCT             "Civ 2 MGE Patch"
-#define DESCRIPTION         "Civilization 2 Multiplayer Gold Edition Patch"
-#define MODULE_NAME         "civ2patch.dll"
-#define CONFIG_FILE         "civ2patch.ini"
-#define LOG_FILE            "civ2patch.log"
-#define MUSIC_DEVICE_NAME   "cdaudio"
-#define MUSIC_DEVICE_ID     0
-#define MP3_PATH            "Music\\Track%02d.mp3"
-#define OGG_PATH            "Music\\Track%02d.ogg"
-#define LOG_LEVEL_ERROR     1
-#define LOG_LEVEL_INFO      2
-#define LOG_LEVEL_DEBUG     3
-#define LOG_LEVEL_TRACE     4
-
-#endif // CONSTANTS_H
+#endif // NET_GAME_H

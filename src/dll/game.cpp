@@ -310,41 +310,43 @@ BOOL PatchFastCombat(HANDLE hProcess, DWORD dwCombatAnimationFrameLength)
 BOOL CIV2PATCH_API PeekMessageEx(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
 {
   DOUBLE dBeginTime = GetTimerCurrentTime();
-  DOUBLE dElapsed = dBeginTime - g_dStartTime;
-
-  if (g_dTotalSleepTime < 1.0 || dElapsed < 1.0) {
-    MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-
-    DOUBLE dNow = GetTimerCurrentTime();
-
-    // Prime the counters.
-    g_dStartTime = dBeginTime;
-    g_dTotalSleepTime = (dNow > dBeginTime) ? (dNow - dBeginTime) : 500.0;
-  } else if (((dElapsed - g_dTotalSleepTime) / g_dTotalSleepTime) >= g_dSleepRatio) {
-    MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-
-    DOUBLE dNow = GetTimerCurrentTime();
-
-    // Overflow check.
-    if (dNow >= dBeginTime) {
-      if (dNow == dBeginTime) {
-        // Low resolution timer. Add 0.5 milliseconds to make up for poor precision.
-        g_dTotalSleepTime += 500.0;
-      } else {
-        g_dTotalSleepTime += (dNow - dBeginTime);
-      }
-    } else {
-      g_dTotalSleepTime = 0.0;
-    }
-
-    // Reset
-    if (dElapsed >= g_dCpuSamplingInterval) {
-      g_dTotalSleepTime = 0.0;
-    }
-  }
 
   // Civilization 2 uses filter value 957 as a spinning wait.
   if (wMsgFilterMin == 957) {
+    DOUBLE dElapsed = dBeginTime - g_dStartTime;
+
+    if (g_dTotalSleepTime < 1.0 || dElapsed < 1.0) {
+      MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+
+      DOUBLE dNow = GetTimerCurrentTime();
+
+      // Prime the counters.
+      g_dStartTime = dBeginTime;
+      g_dTotalSleepTime = (dNow > dBeginTime) ? (dNow - dBeginTime) : 1000.0;
+    } else if (((dElapsed - g_dTotalSleepTime) / g_dTotalSleepTime) >= g_dSleepRatio) {
+      MsgWaitForMultipleObjectsEx(0, 0, g_dwMessageWaitTimeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+
+      DOUBLE dNow = GetTimerCurrentTime();
+
+      // Overflow check.
+      if (dNow >= dBeginTime) {
+        if (dNow == dBeginTime) {
+          // Low resolution timer. Add 1 milliseconds to make up for poor precision.
+          g_dTotalSleepTime += 1000.0;
+        } else {
+          g_dTotalSleepTime += (dNow - dBeginTime);
+        }
+      } else {
+        g_dTotalSleepTime = 0.0;
+      }
+
+      // Reset
+      if (dElapsed >= g_dCpuSamplingInterval) {
+        g_dTotalSleepTime = 0.0;
+      }
+    }
+
+    // Prime last purge time.
     if (g_dLastMessagePurgeTime < 1.0) {
       g_dLastMessagePurgeTime = dBeginTime;
     }

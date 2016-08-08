@@ -80,9 +80,9 @@ BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpcsFunctionName, D
   return WriteMemory(hProcess, buffer, dwSize, dwTargetAddress);
 }
 
-BOOL ConvertValueToByteArray(DWORD dwValue, DWORD dwSize, BYTE *buffer)
+BOOL ConvertValueToByteArray(DWORD dwValue, DWORD dwSize, LPBYTE lpData)
 {
-  memcpy(buffer, &dwValue, dwSize);
+  memcpy(lpData, &dwValue, dwSize);
 
   return TRUE;
 }
