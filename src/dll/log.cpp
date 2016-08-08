@@ -17,27 +17,80 @@
  */
 #include <stdio.h>
 #include "log.h"
+#include "timer.h"
 #include "constants.h"
 #include "config.h"
 
+CRITICAL_SECTION g_criticalSection;
+
 void InitializeLog()
 {
-  if (g_config.bLog) {
+  if (IsLogEnabled()) {
+    InitializeCriticalSection(&g_criticalSection);
+
     // Purge log file.
     fclose(fopen(LOG_FILE, "w"));
   }
 }
 
-void Log(LPCSTR lpcsFormat, ...)
+void ShutdownLog()
 {
-  if (g_config.bLog) {
-    FILE *file = fopen(LOG_FILE, "a");
+  if (IsLogEnabled()) {
+    DeleteCriticalSection(&g_criticalSection);
+  }
+}
 
+void Log(LPCSTR lpcsFormat, LPCSTR lpcsLevel, va_list args)
+{
+  EnterCriticalSection(&g_criticalSection);
+
+  FILE *file = fopen(LOG_FILE, "a");
+
+  fprintf(file, "[%.0lf] [%d] %s: ", GetTimerCurrentTime(), GetCurrentThreadId(), lpcsLevel);
+  vfprintf(file, lpcsFormat, args);
+  fprintf(file, "\n");
+
+  fclose(file);
+
+  LeaveCriticalSection(&g_criticalSection);
+}
+
+void LogInfo(LPCSTR lpcsFormat, ...)
+{
+  if (GetLogLevel() >= LOG_LEVEL_INFO) {
     va_list args;
     va_start(args, lpcsFormat);
-    vfprintf(file, lpcsFormat, args);
+    Log(lpcsFormat, "INFO", args);
     va_end(args);
+  }
+}
 
-    fclose(file);
+void LogError(LPCSTR lpcsFormat, ...)
+{
+  if (GetLogLevel() >= LOG_LEVEL_ERROR) {
+    va_list args;
+    va_start(args, lpcsFormat);
+    Log(lpcsFormat, "ERROR", args);
+    va_end(args);
+  }
+}
+
+void LogDebug(LPCSTR lpcsFormat, ...)
+{
+  if (GetLogLevel() >= LOG_LEVEL_DEBUG) {
+    va_list args;
+    va_start(args, lpcsFormat);
+    Log(lpcsFormat, "DEBUG", args);
+    va_end(args);
+  }
+}
+
+void LogTrace(LPCSTR lpcsFormat, ...)
+{
+  if (GetLogLevel() >= LOG_LEVEL_TRACE) {
+    va_list args;
+    va_start(args, lpcsFormat);
+    Log(lpcsFormat, "TRACE", args);
+    va_end(args);
   }
 }

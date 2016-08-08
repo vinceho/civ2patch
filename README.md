@@ -22,6 +22,7 @@ All of the fields in the `Options` section are feature toggles. To enable a feat
 
 * `Log` When enabled, error messages will be written to the `civ2patch.log` file.
 * `Music` When enabled, the application will look in the `Music` folder and play MP3 or OGG tracks. The name of the files must be in the format of `Track##.mp3` or `Track##.ogg`, where `##` is the 2 digits track number.
+* `Multiplayer` When enabled, SDL will be used for networking instead of Winsock.
 * `FixCpuUsage` When enabled, reduce CPU usage when the application is idle.
 * `Fix64BitCompatibility` When enabled, patch the application to run on 64-bit Windows.
 * `DisableCdCheck` When enabled, allow the application to run without the game CD.
@@ -60,6 +61,14 @@ These fields configures the music player when the feature is enabled.
 * `ChunkSize` The audio buffer size in bytes.
 * `Volume` The music volume.
 * `Album` The soundtrack to use. This determines the number of tracks the game will recognize. (`0` for MGE, `1` for Classic, `2` for Conflicts in Civilization, `3` for Fantastic Worlds)
+
+### Multiplayer
+
+These fields configures network connections when the feature is enabled.
+
+* `ConnectionPort` The TCP port for connecting to the server/client. (Min: `1024`, Max: `65535`)
+* `BroadcastPort` The UDP port for broadcasting messages over LAN. (Min: `1024`, Max: `65535`)
+* `ConnectionTimeout` The time in milliseconds to wait for connection before disconnecting. (Min: `1000`, Max: `60000`)
 
 ## Building
 

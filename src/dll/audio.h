@@ -21,7 +21,7 @@
 #include <windows.h>
 
 BOOL InitializeAudio(DWORD dwFreq, DWORD dwChunkSize, DWORD dwVolume, DWORD dwAlbum);
-BOOL CloseAudio();
+BOOL ShutdownAudio();
 DWORD GetNumberMusicTracks();
 MCIDEVICEID AddMciDevice(MCIDEVICEID wId);
 MCIDEVICEID GetMciDevice(MCIDEVICEID wProxyId);

@@ -15,16 +15,12 @@
  * You should have received a copy of the GNU General Public License
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef LOG_H
-#define LOG_H
+#ifndef TIMER_H
+#define TIMER_H
 
 #include <windows.h>
 
-void InitializeLog();
-void ShutdownLog();
-void LogInfo(LPCSTR lpcsFormat, ...);
-void LogError(LPCSTR lpcsFormat, ...);
-void LogDebug(LPCSTR lpcsFormat, ...);
-void LogTrace(LPCSTR lpcsFormat, ...);
+BOOL InitializeTimer();
+DOUBLE GetTimerCurrentTime();
 
-#endif // LOG_H
+#endif // TIMER_H

@@ -18,42 +18,19 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 #include <stdio.h>
-#include <map>
 #include "audio.h"
 #include "constants.h"
 #include "log.h"
-
-typedef int (SDLCALL *__SDL_Init__)(Uint32);
-typedef void (SDLCALL *__SDL_Quit__)(void);
-typedef const char *(SDLCALL *__SDL_GetError__)(void);
-typedef int (SDLCALL *__Mix_Init__)(int);
-typedef int (SDLCALL *__Mix_OpenAudio__)(int, Uint16, int, int);
-typedef Mix_Music *(SDLCALL *__Mix_LoadMUS__)(const char *);
-typedef int (SDLCALL *__Mix_PlayMusic__)(Mix_Music *, int);
-typedef void (SDLCALL *__Mix_HookMusicFinished__)(void (*)(void));
-typedef int (SDLCALL *__Mix_VolumeMusic__)(int);
-typedef void (SDLCALL *__Mix_FreeMusic__)(Mix_Music *);
-typedef void (SDLCALL *__Mix_CloseAudio__)(void);
-typedef void (SDLCALL *__Mix_Quit__)(void);
-
-__SDL_Init__ _SDL_Init;
-__SDL_Quit__ _SDL_Quit;
-__SDL_GetError__ _SDL_GetError;
-__Mix_Init__ _Mix_Init;
-__Mix_OpenAudio__ _Mix_OpenAudio;
-__Mix_LoadMUS__ _Mix_LoadMUS;
-__Mix_PlayMusic__ _Mix_PlayMusic;
-__Mix_HookMusicFinished__ _Mix_HookMusicFinished;
-__Mix_VolumeMusic__ _Mix_VolumeMusic;
-__Mix_FreeMusic__ _Mix_FreeMusic;
-__Mix_CloseAudio__ _Mix_CloseAudio;
-__Mix_Quit__ _Mix_Quit;
-
-HINSTANCE g_SdlLibraryHandle = NULL;
-HINSTANCE g_SdlMixerLibraryHandle = NULL;
+#include "sdllibrary.h"
 
 // Maps device proxy Id to real Id provided by Windows.
-std::map<MCIDEVICEID, MCIDEVICEID> g_mciDeviceIdMap;
+typedef struct _AudioProxyId {
+  MCIDEVICEID wProxyId;
+  MCIDEVICEID wSystemId;
+  struct _AudioProxyId *next;
+} AudioProxyId;
+
+AudioProxyId *g_mciDeviceIdList = NULL;
 DWORD g_dwCdDeviceProxyId = 0;
 
 DWORD g_dwMusicAlbum = 0;
@@ -63,81 +40,44 @@ HWND g_hNotifyMusicFinishedCallback = NULL;
 
 void StopMusic();
 void NotifyMusicFinishedHandler();
+void RemoveAllMciDevice();
 
 BOOL InitializeAudio(DWORD dwFreq, DWORD dwChunkSize, DWORD dwVolume, DWORD dwAlbum)
 {
   g_dwMusicVolume = dwVolume;
   g_dwMusicAlbum = dwAlbum;
-  g_SdlLibraryHandle = LoadLibrary("SDL2.dll");
-  g_SdlMixerLibraryHandle = LoadLibrary("SDL2_mixer.dll");
 
-  if (g_SdlLibraryHandle && g_SdlMixerLibraryHandle) {
-    _SDL_Init = (__SDL_Init__)GetProcAddress(g_SdlLibraryHandle, "SDL_Init");
-    _SDL_Quit = (__SDL_Quit__)GetProcAddress(g_SdlLibraryHandle, "SDL_Quit");
-    _SDL_GetError = (__SDL_GetError__)GetProcAddress(g_SdlLibraryHandle, "SDL_GetError");
-    _Mix_Init = (__Mix_Init__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_Init");
-    _Mix_OpenAudio = (__Mix_OpenAudio__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_OpenAudio");
-    _Mix_LoadMUS = (__Mix_LoadMUS__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_LoadMUS");
-    _Mix_PlayMusic = (__Mix_PlayMusic__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_PlayMusic");
-    _Mix_HookMusicFinished = (__Mix_HookMusicFinished__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_HookMusicFinished");
-    _Mix_VolumeMusic = (__Mix_VolumeMusic__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_VolumeMusic");
-    _Mix_FreeMusic = (__Mix_FreeMusic__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_FreeMusic");
-    _Mix_CloseAudio = (__Mix_CloseAudio__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_CloseAudio");
-    _Mix_Quit = (__Mix_Quit__)GetProcAddress(g_SdlMixerLibraryHandle, "Mix_Quit");
-
-    if (!_SDL_Init || !_SDL_Quit || !_SDL_GetError || !_Mix_Init
-        || !_Mix_OpenAudio || !_Mix_LoadMUS || !_Mix_PlayMusic
-        || !_Mix_HookMusicFinished || !_Mix_VolumeMusic || !_Mix_FreeMusic
-        || !_Mix_CloseAudio || !_Mix_Quit) {
-      Log("ERROR: Failed to load audio libraries.\n");
-      return FALSE;
-    }
-
+  if (InitializeSdlLibrary() && InitializeSdlMixerLibrary()) {
     int nMixerFlags = (MIX_INIT_MP3 | MIX_INIT_OGG);
 
     if (!_SDL_Init(SDL_INIT_AUDIO)
         && _Mix_Init(nMixerFlags) == nMixerFlags
         && !_Mix_OpenAudio(dwFreq, MIX_DEFAULT_FORMAT, 2, dwChunkSize)) {
-
       _Mix_HookMusicFinished(NotifyMusicFinishedHandler);
-    } else {
-      Log("ERROR: Failed to initialize audio: %s.\n", _SDL_GetError());
-      return FALSE;
-    }
 
-    return TRUE;
+      return TRUE;
+    } else {
+      LogError("Failed to initialize audio: %s", _SDL_GetError());
+    }
   } else {
-    Log("ERROR: Failed to load audio libraries.\n");
+    LogError("Failed to load audio libraries.");
   }
 
   return FALSE;
 }
 
-BOOL CloseAudio()
+BOOL ShutdownAudio()
 {
   g_dwMusicAlbum = 0;
   g_hNotifyMusicFinishedCallback = NULL;
 
-  RemoveMciDevice(g_dwCdDeviceProxyId);
+  RemoveAllMciDevice();
 
   StopMusic();
 
   _Mix_CloseAudio();
 
-  // Force SDL2 mixer to quit.
-  while(_Mix_Init(0)) {
-    _Mix_Quit();
-  }
-
-  _SDL_Quit();
-
-  if (g_SdlMixerLibraryHandle) {
-    FreeLibrary(g_SdlMixerLibraryHandle);
-  }
-
-  if (g_SdlLibraryHandle) {
-    FreeLibrary(g_SdlLibraryHandle);
-  }
+  ShutdownSdlMixerLibrary();
 
   return TRUE;
 }
@@ -182,13 +122,13 @@ BOOL PlayMusic(DWORD dwTrack, HWND hNotifyMusicFinishedCallback) {
   g_music = LoadMusic(dwTrack);
 
   if (!g_music) {
-    Log("ERROR: Failed to load music track %d: %s.\n", dwTrack, _SDL_GetError());
+    LogError("Failed to load music track %d: %s", dwTrack, _SDL_GetError());
 
     return FALSE;
   }
 
   if(_Mix_PlayMusic(g_music, 1)) {
-    Log("ERROR: Failed to play music track %d: %s.\n", dwTrack, _SDL_GetError());
+    LogError("Failed to play music track %d: %s", dwTrack, _SDL_GetError());
 
     return FALSE;
   }
@@ -221,9 +161,9 @@ MCIDEVICEID GetNextMciDeviceProxyId()
 {
   MCIDEVICEID wNewProxyId = 1;
 
-  for (std::map<MCIDEVICEID, MCIDEVICEID>::iterator it = g_mciDeviceIdMap.begin(); it != g_mciDeviceIdMap.end(); ++it) {
-    if (it->first > wNewProxyId) {
-      wNewProxyId = it->first + 1;
+  for (AudioProxyId *it = g_mciDeviceIdList; it != NULL; it = it->next) {
+    if (it->wProxyId >= wNewProxyId) {
+      wNewProxyId = it->wProxyId + 1;
     }
   }
 
@@ -232,9 +172,21 @@ MCIDEVICEID GetNextMciDeviceProxyId()
 
 MCIDEVICEID AddMciDevice(MCIDEVICEID wId)
 {
-  MCIDEVICEID wNewProxyId = GetNextMciDeviceProxyId();
+  for (AudioProxyId *it = g_mciDeviceIdList; it != NULL; it = it->next) {
+    if (it->wSystemId == wId) {
+      return it->wProxyId;
+    }
+  }
 
-  g_mciDeviceIdMap[wNewProxyId] = wId;
+  MCIDEVICEID wNewProxyId = GetNextMciDeviceProxyId();
+  AudioProxyId *newAudioProxyId = (AudioProxyId *)malloc(sizeof(AudioProxyId));
+
+  memset(newAudioProxyId, 0, sizeof(AudioProxyId));
+  newAudioProxyId->wProxyId = wNewProxyId;
+  newAudioProxyId->wSystemId = wId;
+  newAudioProxyId->next = g_mciDeviceIdList;
+
+  g_mciDeviceIdList = newAudioProxyId;
 
   if (wId == MUSIC_DEVICE_ID) {
     g_dwCdDeviceProxyId = wNewProxyId;
@@ -243,26 +195,52 @@ MCIDEVICEID AddMciDevice(MCIDEVICEID wId)
   return wNewProxyId;
 }
 
-BOOL HasMciDevice(MCIDEVICEID wProxyId)
-{
-  return (g_mciDeviceIdMap.find(wProxyId) != g_mciDeviceIdMap.end());
-}
-
 void RemoveMciDevice(MCIDEVICEID wProxyId)
 {
   if (wProxyId == g_dwCdDeviceProxyId) {
     g_dwCdDeviceProxyId = 0;
   }
 
-  if (HasMciDevice(wProxyId)) {
-    g_mciDeviceIdMap.erase(wProxyId);
+  AudioProxyId *prev = NULL;
+
+  for (AudioProxyId *it = g_mciDeviceIdList; it != NULL; it = it->next) {
+    if (it->wProxyId == wProxyId) {
+      if (prev) {
+        prev->next = it->next;
+      }
+
+      if (it == g_mciDeviceIdList) {
+        g_mciDeviceIdList = it->next;
+      }
+
+      free(it);
+
+      break;
+    }
+
+    prev = it;
   }
+}
+
+void RemoveAllMciDevice()
+{
+  for (AudioProxyId *it = g_mciDeviceIdList; it != NULL;) {
+    AudioProxyId *next = it->next;
+
+    free(it);
+    it = next;
+  }
+
+  g_dwCdDeviceProxyId = 0;
+  g_mciDeviceIdList = NULL;
 }
 
 MCIDEVICEID GetMciDevice(MCIDEVICEID wProxyId)
 {
-  if (HasMciDevice(wProxyId)) {
-    return g_mciDeviceIdMap[wProxyId];
+  for (AudioProxyId *it = g_mciDeviceIdList; it != NULL; it = it->next) {
+    if (it->wProxyId == wProxyId) {
+      return it->wSystemId;
+    }
   }
 
   return 0;

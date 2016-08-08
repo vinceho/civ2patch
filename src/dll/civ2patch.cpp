@@ -21,7 +21,9 @@
 #include "inject.h"
 #include "game.h"
 #include "config.h"
+#include "timer.h"
 #include "log.h"
+#include "sdllibrary.h"
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
 {
@@ -33,6 +35,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
     case DLL_PROCESS_ATTACH:
       InitializeConfig();
       InitializeLog();
+      InitializeTimer();
 
       hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
 
@@ -40,10 +43,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpvReserved)
         bSuccess = PatchGame(hProcess);
         CloseHandle(hProcess);
       } else {
-        Log("ERROR: Failed to open process.");
+        LogError("Failed to open process.");
       }
       break;
     case DLL_PROCESS_DETACH:
+      ShutdownSdlNetLibrary();
+      ShutdownSdlLibrary();
+      ShutdownLog();
       break;
     case DLL_THREAD_ATTACH:
       break;

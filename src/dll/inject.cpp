@@ -24,7 +24,7 @@ HMODULE GetCurrentModuleHandle()
   HMODULE hModule = GetModuleHandle(MODULE_NAME);
 
   if (!hModule) {
-    Log("ERROR: Failed to load %s.\n", MODULE_NAME);
+    LogError("Failed to load %s.", MODULE_NAME);
   }
 
   return hModule;
@@ -35,25 +35,44 @@ BOOL WriteMemory(HANDLE hProcess, LPVOID lpvData, DWORD dwBytes, DWORD dwTargetA
   BOOL bSuccess = WriteProcessMemory(hProcess, (LPVOID)dwTargetAddress, lpvData, dwBytes, NULL);
 
   if (!bSuccess) {
-    Log("ERROR: Failed to write to address 0x%x.\n", dwTargetAddress);
+    LogError("Failed to write to address 0x%x.", dwTargetAddress);
   }
 
   return bSuccess;
 }
 
-BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpsFunctionName, DWORD dwTargetAddress)
+BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpcsFunctionName, DWORD dwTargetAddress)
 {
-  DWORD dwAddress = (DWORD)GetProcAddress(hModule, lpsFunctionName);
+  DWORD dwAddress = (DWORD)GetProcAddress(hModule, lpcsFunctionName);
 
   if (!dwAddress) {
-    Log("ERROR: Failed to get address of %s.\n", lpsFunctionName);
+    LogError("Failed to get address of %s.", lpcsFunctionName);
 
     return FALSE;
   }
 
-  // Destination call:ds is 6 bytes. However, only 5 is needed for the hook.
-  DWORD dwSize = 6;
-  BYTE buffer[dwSize] = {0xE8, 0x90, 0x90, 0x90, 0x90, 0x90};
+  DWORD dwSize = 0;
+  BYTE readBuffer;
+
+  if (ReadProcessMemory(hProcess, (LPVOID)dwTargetAddress, &readBuffer, 1, NULL)) {
+    if (readBuffer == 0xFF) {
+      // Opcode call:ds is 6 bytes.
+      dwSize = 6;
+    } else if (readBuffer == 0xE8) {
+      // Opcode call is 5 bytes.
+      dwSize = 5;
+    } else {
+      LogError("Failed to hook '%s' due to unknown opcode at address 0x%x.", lpcsFunctionName, dwTargetAddress);
+
+      return FALSE;
+    }
+  } else {
+    LogError("Failed to hook '%s' due to error reading address 0x%x.", lpcsFunctionName, dwTargetAddress);
+
+    return FALSE;
+  }
+
+  BYTE buffer[] = {0xE8, 0x90, 0x90, 0x90, 0x90, 0x90};
   DWORD dwDistance = ((DWORD)dwAddress - (DWORD)dwTargetAddress - 5);
 
   memcpy(&buffer[1], &dwDistance, 4);
@@ -61,9 +80,9 @@ BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpsFunctionName, DW
   return WriteMemory(hProcess, buffer, dwSize, dwTargetAddress);
 }
 
-BOOL ConvertValueToByteArray(DWORD dwValue, DWORD dwSize, BYTE *buffer)
+BOOL ConvertValueToByteArray(DWORD dwValue, DWORD dwSize, LPBYTE lpData)
 {
-  memcpy(buffer, &dwValue, dwSize);
+  memcpy(lpData, &dwValue, dwSize);
 
   return TRUE;
 }

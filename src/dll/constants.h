@@ -29,5 +29,9 @@
 #define MUSIC_DEVICE_ID     0
 #define MP3_PATH            "Music\\Track%02d.mp3"
 #define OGG_PATH            "Music\\Track%02d.ogg"
+#define LOG_LEVEL_ERROR     1
+#define LOG_LEVEL_INFO      2
+#define LOG_LEVEL_DEBUG     3
+#define LOG_LEVEL_TRACE     4
 
 #endif // CONSTANTS_H

@@ -15,16 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Civ 2 MGE Patch.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef LOG_H
-#define LOG_H
+#ifndef NET_GAME_H
+#define NET_GAME_H
 
-#include <windows.h>
-
-void InitializeLog();
-void ShutdownLog();
-void LogInfo(LPCSTR lpcsFormat, ...);
-void LogError(LPCSTR lpcsFormat, ...);
-void LogDebug(LPCSTR lpcsFormat, ...);
-void LogTrace(LPCSTR lpcsFormat, ...);
-
-#endif // LOG_H
+#endif // NET_GAME_H

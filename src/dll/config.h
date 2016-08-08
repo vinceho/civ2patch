@@ -33,11 +33,11 @@ typedef struct {
   LPVOID lpvValue;
 } ConfigLink;
 
-
 typedef struct {
   // Options
-  BOOL bLog;
+  DWORD dwLogLevel;
   BOOL bMusic;
+  BOOL bMultiplayer;
   BOOL bFixCpu;
   BOOL bFix64BitCompatibility;
   BOOL bNoCdCheck;
@@ -67,10 +67,43 @@ typedef struct {
   DWORD dwMusicChunkSize;
   DWORD dwMusicVolume;
   DWORD dwMusicAlbum; // MGE, Classic, CIC, FW
+
+  // Multiplayer
+  DWORD dwNetConnectionPort;
+  DWORD dwNetBroadcastPort;
+  DWORD dwNetConnectionTimeout;
 } Config;
 
-extern Config g_config;
-
 BOOL InitializeConfig();
+BOOL IsLogEnabled();
+DWORD GetLogLevel();
+BOOL IsMusicEnabled();
+BOOL IsMultiplayerEnabled();
+BOOL IsFixIdleCpuEnabled();
+BOOL IsFix64BitEnabled();
+BOOL IsNoCdCheckEnabled();
+BOOL IsFixHostileAiEnabled();
+BOOL IsSetRetirementYearEnabled();
+BOOL IsSetCombatAnimationLengthEnabled();
+BOOL IsSetPopulationLimitEnabled();
+BOOL IsSetGoldLimitEnabled();
+BOOL IsSetMapTilesLimitEnabled();
+DWORD GetPurgeMessagesInterval();
+DWORD GetMessageWaitTimeout();
+DWORD GetCombatAnimationLength();
+FLOAT GetSleepRatio();
+DWORD GetCpuSamplingInterval();
+DWORD GetRetirementYear();
+DWORD GetRetirementWarningYear();
+DWORD GetMapTilesLimit();
+DWORD GetPopulationLimit();
+DWORD GetGoldLimit();
+DWORD GetMusicFrequency();
+DWORD GetMusicChunkSize();
+DWORD GetMusicVolume();
+DWORD GetMusicAlbum();
+DWORD GetNetConnectionPort();
+DWORD GetNetBroadcastPort();
+DWORD GetNetConnectionTimeout();
 
 #endif // CONFIG_H

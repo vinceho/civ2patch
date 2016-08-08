@@ -23,6 +23,6 @@
 BOOL WriteMemory(HANDLE hProcess, LPVOID lpvData, DWORD dwBytes, DWORD dwTargetAddress);
 BOOL HookWindowsAPI(HANDLE hProcess, HMODULE hModule, LPCSTR lpcsFunctionName, DWORD dwTargetAddress);
 HMODULE GetCurrentModuleHandle();
-BOOL ConvertValueToByteArray(DWORD dwValue, DWORD dwSize, BYTE *buffer);
+BOOL ConvertValueToByteArray(DWORD dwValue, DWORD dwSize, LPBYTE lpData);
 
 #endif // INJECT_H
