@@ -22,10 +22,12 @@
 #include "civ2patch.h"
 #include "log.h"
 #include "net.h"
+#include "hook.h"
 #include "netconfig.h"
 #include "sdllibrary.h"
 
 NetInstance *g_pNetInstance = NULL;
+int (*g_fpInFlushSendBuffer)(void) = NULL;
 
 INT CIV2PATCH_API Net_ActivateServer(void)
 {
@@ -99,6 +101,12 @@ INT CIV2PATCH_API Net_InFlushSendBuffer(void)
 {
   if (g_pNetInstance && ProcessNetInstance(g_pNetInstance)) {
     return 0;
+  } else {
+    if (!g_fpInFlushSendBuffer) {
+      g_fpInFlushSendBuffer = (int (*)(void))GetOriginalFunctionAddress(XD_IN_FLUSH_SEND_BUFFER_HOOK);
+    }
+
+    return g_fpInFlushSendBuffer();
   }
 
   return -1;
