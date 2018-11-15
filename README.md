@@ -1,3 +1,5 @@
+This repository is no longer in development. Please use [Civilization II User Interface Additions](https://github.com/FoxAhead/Civ2-UI-Additions) by @FoxAhead instead.
+
 # Civilization 2 Multiplayer Gold Edition Patch
 
 ## Synopsis
